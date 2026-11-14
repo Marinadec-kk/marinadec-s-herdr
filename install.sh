@@ -32,6 +32,7 @@ fi
 
 mkdir -p "$home/layouts" "$home/mods/spaces-status"
 cp "$here/layouts/main-status.json" "$home/layouts/main-status.json"
+cp "$here/layouts/main-status.png" "$home/layouts/main-status.png"
 cp -R "$here/mods/spaces-status/." "$home/mods/spaces-status/"
 echo "Installed into $home"
 

@@ -62,6 +62,7 @@ Herdr loads the files live. To go back to the shipped layout, `herdr-app do layo
 
 ```
 layouts/main-status.json      the layout: sidebar, tabs, panes, status bar
+layouts/main-status.png       its preview in Herdr's settings
 mods/spaces-status/main.js    the Spaces sidebar mod
 mods/spaces-status/mod.json   mod metadata (place: none)
 mods/spaces-status/icons/     Material Rounded SVGs used by the avatars

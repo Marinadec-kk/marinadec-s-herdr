@@ -50,7 +50,8 @@ A Herdr layout with the Spaces sidebar turned into an inline agent board: each t
 
 ```
 root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
-      theme {light paper, dark ink}, terminal_padding [14,12])
+      theme {light paper, dark ink}, terminal_padding [14,12],
+      preview layouts/main-status.png)
 ├─ sidebar (column, 299 px, min 44, max 480, chrome, resizable false)
 │  ├─ brand (block, 46 px, mod workspace-chrome, window_drag)
 │  ├─ sidebar-lists (column)
