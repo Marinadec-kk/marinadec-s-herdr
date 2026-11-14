@@ -28,6 +28,14 @@ herdr-app do layout.switch --name main-status
 
 If Herdr is not running yet, start it after copying the files; the layout is in the layout picker. `ctrl-shift-l` switches back to any other layout.
 
+Check the install:
+
+```sh
+herdr-app check ~/.config/herdr-app/mods/spaces-status
+```
+
+It should print `check passed`.
+
 Or ask your Herdr agent to add `herdr.dev/layouts/Marinadec-kk/marinadec-s-herdr`.
 
 Herdr uses `HERDR_APP_HOME` instead of `~/.config/herdr-app` when set; use that path in the commands above.
