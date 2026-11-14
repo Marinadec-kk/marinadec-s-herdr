@@ -63,10 +63,11 @@ const SPACE_ICONS = [
   { icon: "gavel", match: /^(legal|law|laws|court)$/ },
 ];
 
-// The glyph for a space, read from its name and its repo: a name like
-// "Zanger" says little, while "zanger_web" says web.
-function spaceGlyph(w, g) {
-  const words = [w.name, g?.name, w.folder?.split(/[\\/]/).pop()]
+// The glyph for a space, read from its name, its repo and where it lives now:
+// a name like "Zanger" says little, while "zanger_web" says web, and a renamed
+// space should not keep the icon of the folder it started in.
+function spaceGlyph(w, g, folder) {
+  const words = [w.name, g?.name, folder?.split(/[\\/]/).pop()]
     .filter(Boolean)
     .join(" ")
     .toLowerCase()
@@ -349,7 +350,7 @@ export default class Spaces extends View {
     const sp = spaces(), ps = panes();
     const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
-    const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
+    const list = sp.map((w, i) => ({ w, i, at: place(w, ps), g: this.git[where(w, ps)] ?? null }));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const nested = (r) => r.g?.linked && mains.has(r.g.repo);
     const out = [];
@@ -549,7 +550,7 @@ export default class Spaces extends View {
     return div().size(7).mx(3).flex_none().rounded(4).bg(t.done).tooltip(label);
   }
 
-  row({ w, i, g, tree }, t, info, sessions, folded) {
+  row({ w, i, g, tree, at }, t, info, sessions, folded) {
     const on = w.active;
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const colors = shared("space.colors") ?? {};
@@ -615,7 +616,7 @@ export default class Spaces extends View {
             svg("mods/spaces-status/icons/account_tree.svg").size(12).text_color(ink),
           )))
           .when(!tree, el => {
-            const glyph = w.name === "~" ? "home" : spaceGlyph(w, g);
+            const glyph = w.name === "~" ? "home" : spaceGlyph(w, g, at);
             return el.child(tile(glyph
               ? svg(`mods/spaces-status/icons/${glyph}.svg`).size(12).text_color(ink)
               : div().text_size(10.5).font_bold().text_color(ink).child([...w.name][0]?.toUpperCase() ?? "?"),

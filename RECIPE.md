@@ -42,7 +42,7 @@ A Herdr layout with the Spaces sidebar turned into an inline agent board: each t
 
 **Colors.** A new space gets the least-used color from ten slots: the six legacy names (`ansi6`, `ansi3`, `ansi4`, `ansi5`, `ansi2`, `ansi1`) and four hex colors (`#2aa8c9`, `#7f9f4a`, `#a0785a`, `#b06ab3`). If the old palette left duplicates, the first owner keeps its color and later spaces take free slots. The map is shared under `space.colors`; the shipped `spaces` and `picker` mods understand both names and `#rrggbb`. Colors for spaces that no longer exist are pruned on render.
 
-**Icons.** `SPACE_ICONS` tests tokens from the space name, the repo name and the folder's basename. Rules run in order: functions before analytics, so "Functional Analysis" gets Σ while "Analytical Platform" gets a chart. Unknown names keep their letter. `~` is always a house; worktrees always use the tree. Icons are Material Rounded SVGs, 12 px, tinted by the avatar ink.
+**Icons.** `SPACE_ICONS` tests tokens from the space name, the repo name and the live folder's basename. Rules run in order: functions before analytics, so "Functional Analysis" gets Σ while "Analytical Platform" gets a chart. Unknown names keep their letter. `~` is always a house; worktrees always use the tree. Icons are Material Rounded SVGs, 12 px, tinted by the avatar ink.
 
 ## Built from
 
