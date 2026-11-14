@@ -95,7 +95,7 @@ cd ~/Projects/marinadec-s-herdr
 git pull
 ```
 
-A symlinked mod is live as soon as Herdr re-reads the folder; restart Herdr (or make the link again) to be sure. The layout is a copy: copy `layouts/main-status.json` and `layouts/main-status.png` again after a layout change.
+Herdr doesn't notice changes inside a symlinked mod folder, so after a `git pull` restart Herdr (or make the link again) to load the new version. The layout is a copy: copy `layouts/main-status.json` and `layouts/main-status.png` again after a layout change.
 
 ## Uninstall
 
