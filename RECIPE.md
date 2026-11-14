@@ -12,7 +12,7 @@ A Herdr layout with the Spaces sidebar turned into an inline agent board: each t
 
 **Machine headers.** 26 px high, 11 px dim text, 8 px horizontal padding. A monitor icon for this computer, a server icon for a remote one, then the machine name, a 6 px connection dot, a plus, and a fold chevron. Connected local machines are named "This computer". A machine needing a login gets a line with `hc machine login <name>` and a Copy button. A rebuilt machine gets a Connect action. With one machine, its header stays too: it is the anchor for the "New space there" row.
 
-**Space rows.** 30 px high (28 px for worktree rows), 8 px horizontal padding, 8 px radius, 9 px gap. The avatar is an 18×18 tile, radius 5, background `color + "2e"` (about 18% alpha), a 1 px border `color + "33"`, and a 12 px Material glyph or a 10.5 px bold letter in the avatar color (on light themes the letter/glyph is `foreground`). The name is 13 px `foreground`, truncated at 150 px. When there is something unusual to say, a 11.5 px `dim` tail follows: repo and branch, `↑N` in `ansi2`, `↓N` in `ansi1`. The right side holds the harness icons, the aggregate status, and the session chevron.
+**Space rows.** 30 px high (28 px for worktree rows), 8 px horizontal padding, 8 px radius, 9 px gap. The avatar is an 18×18 tile, radius 5, background `color + "2e"` (about 18% alpha), a 1 px border `color + "33"`, and a 10.5 px bold letter in the avatar color (on light themes the letter is `foreground`). Only `~` and worktrees swap the letter for a 12 px Material glyph, a house and a tree. The name is 13 px `foreground`, truncated at 150 px. When there is something unusual to say, a 11.5 px `dim` tail follows: repo and branch, `↑N` in `ansi2`, `↓N` in `ansi1`. The right side holds the harness icons, the aggregate status, and the session chevron.
 
 **Session rows.** One per tab that has an agent: 26 px high, 22 px left padding (38 px under a worktree), 8 px right padding, 8 px gap, 8 px radius. It shows 13 px harness icons, a 13 px label, a 10 px `+N` sub-agent count, and the tab's status. The active session row is `selected`; the label is `foreground` when its space and tab are active, `dim` when the tab is settled, `muted` otherwise. Hovering uses `hover`.
 
@@ -42,7 +42,7 @@ A Herdr layout with the Spaces sidebar turned into an inline agent board: each t
 
 **Colors.** A new space gets the least-used color from ten slots: the six legacy names (`ansi6`, `ansi3`, `ansi4`, `ansi5`, `ansi2`, `ansi1`) and four hex colors (`#2aa8c9`, `#7f9f4a`, `#a0785a`, `#b06ab3`). If the old palette left duplicates, the first owner keeps its color and later spaces take free slots. The map is shared under `space.colors`; the shipped `spaces` and `picker` mods understand both names and `#rrggbb`. Colors for spaces that no longer exist are pruned on render.
 
-**Icons.** `SPACE_ICONS` tests tokens from the space name, the repo name and the live folder's basename. Rules run in order: functions before analytics, so "Functional Analysis" gets Σ while "Analytical Platform" gets a chart. Unknown names keep their letter. `~` is always a house; worktrees always use the tree. Icons are Material Rounded SVGs, 12 px, tinted by the avatar ink.
+**Icons.** Two fixed glyphs only: `~` is a house and worktrees use the tree. Every other space keeps the first letter of its name, uppercased. Matching a space's name, repo or folder against a word list was removed on purpose: it made a fresh install depend on what spaces happened to be called. The two SVGs are Material Rounded, 12 px, tinted by the avatar ink.
 
 ## Built from
 
@@ -73,12 +73,12 @@ root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
 - `render` assigns/repairs space colors through `shared("space.colors")` / `setShared`, then draws machine groups. `narrow()` reads the live sidebar width from `layout()`.
 - `sessions()` groups agents by tab, filters sub-agents, labels rows and counts live descendants from `terminals().parent`.
 - `row()` / `sessionRow()` / `compact()` draw the three row forms; `gitTail()` and `spaceStatus()` are shared helpers.
-- `spaceGlyph()` reads `SPACE_ICONS`; `icon()` draws a program's icon from `programs.json` data.
+- `HOME_GLYPH` / `TREE_GLYPH` give `~` and worktree rows their two fixed icons; every other row takes the first letter; `icon()` draws a program's icon from `programs.json` data.
 - `refreshGit()` and `due()` decide when to ask git; local repos are watched with `watchFolder`, remote ones polled.
 - The mod calls `run("space.select" | "tab.select" | "space.move" | "space.new" | "app.settings")` and opens the shipped `menu` overlay for right-clicks.
 - Data comes from `spaces()`, `agents()`, `terminals()`, `machines()`, `panes()`, `layout()`, `theme()`, `settings()`, `shared()` and `setAgentOrder()`.
 
-**Assets.** `mods/spaces-status/icons/` holds 16 Material Icons Round SVGs: `home`, `account_tree`, `description`, `dns`, `api`, `insights`, `functions`, `bug_report`, `public`, `code`, `terminal`, `cloud`, `storage`, `psychology`, `storefront`, `gavel`. Each has `fill="currentColor"` so `svg(...).text_color(ink)` tints it.
+**Assets.** `mods/spaces-status/icons/` holds two Material Icons Round SVGs: `home` and `account_tree`. Each has `fill="currentColor"` so `svg(...).text_color(ink)` tints it. `social.png` is the 1280×640 card; `preview.png` is the screenshot in the README.
 
 **Dependencies.** Herdr's shipped `workspace-chrome` (brand, footer, monitor/server, chevrons, plus, spinner), `tabs`, `pane`, `files`, `changes`, `workspace-status` and `menu` mods. No programs beyond `git` for the optional tails. No network access.
 
@@ -89,7 +89,7 @@ root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
 - **State overrides the file.** On a machine that already used `main-status`, `layouts/.state/main-status.json` can override the sidebar width and theme. A fresh install uses the file's 299 px and ink/paper.
 - **Colors are local.** `shared("space.colors")` is keyed by space id and lives in that machine's shared state. The same repo on two machines can have different colors; nothing about colors is synced by this repo.
 - **Fold state is local.** `spaces.sessions.folded` lives in the mod copy's `localStorage`, so another machine starts with every space expanded.
-- **Icons are heuristic.** Matching is Latin-token based; a name that says nothing keeps its letter. `smart_toy` and `database` do not exist in Material Icons Round, which is why the rules use `psychology` and `storage`.
+- **Avatars are letters.** The tile never changes with a space's name or folder; only `~` and worktree rows differ. This keeps a fresh install predictable and avoids the surprise of a renamed or moved space keeping an inherited icon.
 - **Worktrees need spaces.** The nesting only places existing worktree spaces; it never creates a space per `git worktree`.
 - **Sidebar width.** The rail starts below 160 px, read from the live layout, so dragging the divider switches forms without a setting.
 - **The panel is hidden.** Files and Changes are in the layout but `hidden: true`; open them from the tab bar as usual. Their remembered width/active child can differ per machine through layout clicks.

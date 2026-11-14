@@ -1,0 +1,11 @@
+{
+  "global": {
+    "alt-shift-f": {
+      "command": "terminal.open",
+      "args": {
+        "argv": ["bash", "-ic", "exec yazi"],
+        "place": "right"
+      }
+    }
+  }
+}

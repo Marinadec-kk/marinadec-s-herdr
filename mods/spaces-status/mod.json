@@ -1,6 +1,6 @@
 {
   "place": "none",
-  "title": "Spaces",
+  "title": "Spaces status",
   "cloned_from": {
     "name": "spaces",
     "version": "0.1.15"

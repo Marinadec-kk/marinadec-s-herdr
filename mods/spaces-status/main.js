@@ -1,6 +1,5 @@
-// Workspace spaces: stable colored avatars, a Material glyph where the name or
-// repo says one, worktrees under their checkout, grouped by machine when more
-// than one is known. After a space's name, the repo
+// Workspace spaces: stable colored avatars, worktrees under their checkout,
+// grouped by machine when more than one is known. After a space's name, the repo
 // its first terminal is in now, only where unusual: branch, ahead/behind; at the
 // end, the harnesses running in it and the space's most urgent status. A space
 // unfolds into its tabs that run agents, each with its own harnesses and status.
@@ -43,38 +42,10 @@ const FALLBACK = 60000;
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 const PROJECT_COLORS = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1", "#2aa8c9", "#7f9f4a", "#a0785a", "#b06ab3"];
 
-// Material Rounded glyphs for spaces, by what the space's name or its repo
-// says it is; anything unrecognized keeps its letter. The files live in
-// icons/, tinted by the tile's ink.
-const SPACE_ICONS = [
-  { icon: "description", match: /^(doc|docs|document\w*|notes?|wiki)$/ },
-  { icon: "dns", match: /^(infra(structure)?|servers?|vps|host(ing)?)$/ },
-  { icon: "api", match: /^(api|services?|backends?)$/ },
-  { icon: "functions", match: /^(functions?|functional|math)$/ },
-  { icon: "insights", match: /^(analy\w*|data|insights?|metrics?|dashboards?|reports?)$/ },
-  { icon: "bug_report", match: /^(tests?|qa|bugs?)$/ },
-  { icon: "public", match: /^(web|website|site|frontend|landing)$/ },
-  { icon: "psychology", match: /^(ai|ml|llm|gpt|models?|neural)$/ },
-  { icon: "code", match: /^(code|dev|git|repo|sdk)$/ },
-  { icon: "terminal", match: /^(shell|cli|terminal)$/ },
-  { icon: "cloud", match: /^cloud$/ },
-  { icon: "storage", match: /^(db|database|databases|postgres\w*|mysql|sql)$/ },
-  { icon: "storefront", match: /^(shop|store|commerce|ecommerce)$/ },
-  { icon: "gavel", match: /^(legal|law|laws|court)$/ },
-];
-
-// The glyph for a space, read from its name, its repo and where it lives now:
-// a name like "Zanger" says little, while "zanger_web" says web, and a renamed
-// space should not keep the icon of the folder it started in.
-function spaceGlyph(w, g, folder) {
-  const words = [w.name, g?.name, folder?.split(/[\\/]/).pop()]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter(Boolean);
-  return SPACE_ICONS.find(({ match }) => words.some((word) => match.test(word)))?.icon ?? null;
-}
+// Two fixed glyphs: a house for ~ and a tree for worktrees. Every other space
+// keeps its first letter on the colored tile; nothing depends on its name.
+const HOME_GLYPH = { "~": "home" };
+const TREE_GLYPH = "account_tree";
 
 // A space speaks up only when something in it needs you.
 export function glyph(status) {
@@ -350,7 +321,7 @@ export default class Spaces extends View {
     const sp = spaces(), ps = panes();
     const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
-    const list = sp.map((w, i) => ({ w, i, at: place(w, ps), g: this.git[where(w, ps)] ?? null }));
+    const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const nested = (r) => r.g?.linked && mains.has(r.g.repo);
     const out = [];
@@ -550,7 +521,7 @@ export default class Spaces extends View {
     return div().size(7).mx(3).flex_none().rounded(4).bg(t.done).tooltip(label);
   }
 
-  row({ w, i, g, tree, at }, t, info, sessions, folded) {
+  row({ w, i, g, tree }, t, info, sessions, folded) {
     const on = w.active;
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const colors = shared("space.colors") ?? {};
@@ -559,6 +530,7 @@ export default class Spaces extends View {
     // A soft tile: the hue at a fifth, a thin edge of the same, and the glyph
     // in the hue on dark themes (foreground reads better on light ones).
     const ink = settings().dark !== false ? fill : t.foreground;
+    const glyph = tree ? TREE_GLYPH : HOME_GLYPH[w.name] ?? null;
     const tile = (child) => h_flex().size(18).flex_none().rounded(5)
       .bg(fill + "2e").border_1().border_color(fill + "33")
       .items_center().justify_center().child(child);
@@ -612,16 +584,11 @@ export default class Spaces extends View {
         h_flex()
           .gap(9)
           .items_center()
-          .when(Boolean(tree), el => el.pl(22).child(tile(
-            svg("mods/spaces-status/icons/account_tree.svg").size(12).text_color(ink),
-          )))
-          .when(!tree, el => {
-            const glyph = w.name === "~" ? "home" : spaceGlyph(w, g, at);
-            return el.child(tile(glyph
-              ? svg(`mods/spaces-status/icons/${glyph}.svg`).size(12).text_color(ink)
-              : div().text_size(10.5).font_bold().text_color(ink).child([...w.name][0]?.toUpperCase() ?? "?"),
-            ));
-          })
+          .when(Boolean(tree), el => el.pl(22))
+          .child(tile(glyph
+            ? svg(`mods/spaces-status/icons/${glyph}.svg`).size(12).text_color(ink)
+            : div().text_size(10.5).font_bold().text_color(ink).child([...w.name][0]?.toUpperCase() ?? "?"),
+          ))
           .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
           .when(showStatus, (el) => el.child(
