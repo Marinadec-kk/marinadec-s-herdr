@@ -1,10 +1,6 @@
 # Marinadec's Herdr
 
-![Marinadec's Herdr: agent sessions inline in the Spaces sidebar](social.png)
-
 A layout for the [Herdr](https://herdr.dev) desktop app. Herdr's Spaces sidebar becomes an inline agent board: every tab running an agent shows up under its space with the harness, live status and sub-agent count. Worktrees nest under their checkout, and every space gets a soft colored tile.
-
-![The layout with inline sessions in the sidebar](preview.png)
 
 - **Inline sessions.** A tab gets a row only if it runs Claude Code, OpenCode, Pi or another agent. The row shows the harness icon, the tab's name, `+N` for sub-agents and the tab's own status.
 - **One status per level.** Expanded, a space leaves status to its session rows. Fold it with the chevron at the right edge, and the space row summarizes its harnesses and the most urgent status.
@@ -22,7 +18,6 @@ Clone this repository and link the mod into Herdr's home:
 git clone https://github.com/Marinadec-kk/marinadec-s-herdr.git ~/Projects/marinadec-s-herdr
 ln -s ~/Projects/marinadec-s-herdr/mods/spaces-status ~/.config/herdr-app/mods/spaces-status
 cp ~/Projects/marinadec-s-herdr/layouts/main-status.json ~/.config/herdr-app/layouts/
-cp ~/Projects/marinadec-s-herdr/layouts/main-status.png ~/.config/herdr-app/layouts/
 herdr-app do layout.switch --name main-status
 ```
 
@@ -86,14 +81,11 @@ Nothing else in the layout is specific to this mod: the sidebar, tabs, pane card
 
 ```
 layouts/main-status.json      the layout: sidebar, tabs, panes, status bar
-layouts/main-status.png       its preview in Herdr's layout picker
 mods/spaces-status/main.js    the Spaces sidebar mod
 mods/spaces-status/mod.json   mod metadata (place: none)
 mods/spaces-status/icons/     home.svg and account_tree.svg
 keys.json                     the optional alt-shift-f / Yazi binding
 RECIPE.md                     the build brief: what it is and how to recreate it
-preview.png                   screenshot used above
-social.png                    GitHub / gallery card
 ```
 
 ## Update
@@ -103,7 +95,7 @@ cd ~/Projects/marinadec-s-herdr
 git pull
 ```
 
-Herdr doesn't notice changes inside a symlinked mod folder, so after a `git pull` restart Herdr (or make the link again) to load the new version. The layout is a copy: copy `layouts/main-status.json` and `layouts/main-status.png` again after a layout change.
+Herdr doesn't notice changes inside a symlinked mod folder, so after a `git pull` restart Herdr (or make the link again) to load the new version. The layout is a copy: copy `layouts/main-status.json` again after a layout change.
 
 ## Uninstall
 
@@ -111,7 +103,7 @@ Herdr doesn't notice changes inside a symlinked mod folder, so after a `git pull
 herdr-app do layout.switch --name main
 home="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
 rm -rf "$home/mods/spaces-status"
-rm -f "$home/layouts/main-status.json" "$home/layouts/main-status.png"
+rm -f "$home/layouts/main-status.json"
 ```
 
 `shared.json` may keep `space.colors` entries; they are harmless and are pruned when spaces disappear.

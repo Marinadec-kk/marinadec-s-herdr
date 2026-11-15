@@ -176,6 +176,5 @@
   "theme": {
     "light": "paper",
     "dark": "ink"
-  },
-  "preview": "layouts/main-status.png"
+  }
 }

@@ -2,8 +2,6 @@
 
 A Herdr layout with the Spaces sidebar turned into an inline agent board: each tab that runs an agent becomes a row under its space with its harness, live status and sub-agent count. The work area is Herdr's usual tabs and pane cards, with the sidebar, statuses and avatars restyled.
 
-![Marinadec's Herdr](preview.png)
-
 ## What you see
 
 **The window.** A 299 px sidebar on the left (min 44, max 480), a 1 px `border` divider, and the work area on a `canvas` background. The layout pins `{ "light": "paper", "dark": "ink" }`, uses 14×12 terminal padding, hides the system title bar and puts macOS traffic lights at `[12, 16]`.
@@ -50,8 +48,7 @@ A Herdr layout with the Spaces sidebar turned into an inline agent board: each t
 
 ```
 root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
-      theme {light paper, dark ink}, terminal_padding [14,12],
-      preview layouts/main-status.png)
+      theme {light paper, dark ink}, terminal_padding [14,12])
 ├─ sidebar (column, 299 px, min 44, max 480, chrome, resizable false)
 │  ├─ brand (block, 46 px, mod workspace-chrome, window_drag)
 │  ├─ sidebar-lists (column)
@@ -78,7 +75,7 @@ root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
 - The mod calls `run("space.select" | "tab.select" | "space.move" | "space.new" | "app.settings")` and opens the shipped `menu` overlay for right-clicks.
 - Data comes from `spaces()`, `agents()`, `terminals()`, `machines()`, `panes()`, `layout()`, `theme()`, `settings()`, `shared()` and `setAgentOrder()`.
 
-**Assets.** `mods/spaces-status/icons/` holds two Material Icons Round SVGs: `home` and `account_tree`. Each has `fill="currentColor"` so `svg(...).text_color(ink)` tints it. `social.png` is the 1280×640 card; `preview.png` is the screenshot in the README.
+**Assets.** `mods/spaces-status/icons/` holds two Material Icons Round SVGs: `home` and `account_tree`. Each has `fill="currentColor"` so `svg(...).text_color(ink)` tints it.
 
 **Dependencies.** Herdr's shipped `workspace-chrome` (brand, footer, monitor/server, chevrons, plus, spinner), `tabs`, `pane`, `files`, `changes`, `workspace-status` and `menu` mods. No programs beyond `git` for the optional tails. No network access.
 
