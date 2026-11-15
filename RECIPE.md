@@ -51,8 +51,7 @@ root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
       theme {light paper, dark ink}, terminal_padding [14,12])
 ├─ sidebar (column, 299 px, min 44, max 480, chrome, resizable false)
 │  ├─ brand (block, 46 px, mod workspace-chrome, window_drag)
-│  ├─ sidebar-lists (column)
-│  │  └─ spaces (block, weight 1, min 90, mod spaces-status)
+│  ├─ spaces (block, weight 1, min 90, mod spaces-status)
 │  └─ sidebar-footer (block, 69 px, mod workspace-chrome, props {footer: true})
 └─ work (column, resizable false)
    ├─ tabs (block, 42 px, mod tabs, window_drag)
@@ -74,6 +73,7 @@ root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
 - `refreshGit()` and `due()` decide when to ask git; local repos are watched with `watchFolder`, remote ones polled.
 - The mod calls `run("space.select" | "tab.select" | "space.move" | "space.new" | "app.settings")` and opens the shipped `menu` overlay for right-clicks.
 - Data comes from `spaces()`, `agents()`, `terminals()`, `machines()`, `panes()`, `layout()`, `theme()`, `settings()`, `shared()` and `setAgentOrder()`.
+- Every live-data read copies the whole list, so `grouped()` reads each one once per render (spaces, panes, machines, agents, terminals, the shared colors, dark mode) and hands the results down to the rows; only mouse handlers re-read, on their own events.
 
 **Assets.** `mods/spaces-status/icons/` holds two Material Icons Round SVGs: `home` and `account_tree`. Each has `fill="currentColor"` so `svg(...).text_color(ink)` tints it.
 

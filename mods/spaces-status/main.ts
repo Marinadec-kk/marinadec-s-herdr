@@ -87,6 +87,15 @@ interface SpaceFacts {
   label: string;
 }
 
+// What every space row needs that never changes between rows: live data read
+// once per render (each read copies the lot) and handed down.
+interface RowCtx {
+  // Where the dragged space comes from, -1 while none is dragged.
+  fromIndex: number;
+  colors: Record<string, string>;
+  dark: boolean;
+}
+
 // A machine being reconnected to after a rebuild.
 interface Reconnect {
   machine: MachineInfo;
@@ -439,8 +448,8 @@ export default class Spaces extends View {
   }
 
   // Spaces in order, each worktree space moved under its main checkout's.
-  ordered(): Row[] {
-    const sp = spaces(), ps = panes();
+  // `sp`/`ps`: spaces() / panes(), read once by the caller (each read copies the lot).
+  ordered(sp: SpaceInfo[], ps: PaneInfo[]): Row[] {
     const ready = (w: SpaceInfo) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
     const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
@@ -460,20 +469,23 @@ export default class Spaces extends View {
     // write can lose a sync conflict: allow the echo to settle before retrying.
     const order = sp.map(w => w.id);
     const target = out.map(r => r.w.id);
-    const key = JSON.stringify([order, target, machines()]);
     if (order.every((id, i) => id === target[i])) {
       this.ordering = null;
-    } else if (this.ordering?.key !== key || this.orderingDue(Date.now())) {
-      const moved = new Set<string | null>();
-      this.ordering = { key, at: Date.now(), machines: [] };
-      for (let i = 0; i < out.length; i++) {
-        const from = order.indexOf(out[i].w.id);
-        if (from === i) continue;
-        run("space.move", { id: out[i].w.id, index: i + 1 });
-        moved.add(out[i].w.machine ?? null);
-        order.splice(i, 0, order.splice(from, 1)[0]);
+    } else {
+      // Only a differing order needs its key (the machines list serializes too).
+      const key = JSON.stringify([order, target, machines()]);
+      if (this.ordering?.key !== key || this.orderingDue(Date.now())) {
+        const moved = new Set<string | null>();
+        this.ordering = { key, at: Date.now(), machines: [] };
+        for (let i = 0; i < out.length; i++) {
+          const from = order.indexOf(out[i].w.id);
+          if (from === i) continue;
+          run("space.move", { id: out[i].w.id, index: i + 1 });
+          moved.add(out[i].w.machine ?? null);
+          order.splice(i, 0, order.splice(from, 1)[0]);
+        }
+        this.ordering.machines = [...moved];
       }
-      this.ordering.machines = [...moved];
     }
     return out.filter(r => this.shown.has(r.w.id));
   }
@@ -525,7 +537,9 @@ export default class Spaces extends View {
 
   // The rows, under a header per machine once one isn't this computer.
   grouped(t: Theme, collapsed: boolean): Element[] {
-    const rows = this.ordered();
+    // Live data for this render, each read once (every read copies the lot).
+    const sp = spaces(), ps = panes(), ms = machines();
+    const rows = this.ordered(sp, ps);
     const all = agents();
     const allTerminals = terminals() as TerminalInfo[];
     const bySpace = new Map<string, AgentInfo[]>();
@@ -536,12 +550,18 @@ export default class Spaces extends View {
     const subagents = new Set(allTerminals.filter((k) => k.parent).map((k) => k.address));
     const sessions = this.sessions(rows, bySpace, allTerminals, subagents);
     const infos = new Map(rows.map((r): [string, SpaceFacts] => [r.w.id, spaceInfo(r.w, bySpace.get(r.w.id) ?? [])]));
+    // What every space row needs, read once here instead of once per row.
+    const ctx: RowCtx = {
+      fromIndex: this.pressed === null ? -1 : sp.findIndex(s => s.id === this.pressed),
+      colors: (shared("space.colors") ?? {}) as Record<string, string>,
+      dark: settings().dark !== false,
+    };
     // One drawn row, with its sessions under it unless folded away.
     const add = (r: Row): Element[] => {
       if (collapsed) return [this.compact(r, t)];
       const list = sessions.get(r.w.id) ?? [];
       const folded = this.sessionFolded.has(r.w.id);
-      return [this.row(r, t, infos.get(r.w.id), list, folded), ...(folded ? [] : list.map((s) => this.sessionRow(r, s, t)))];
+      return [this.row(r, t, ctx, infos.get(r.w.id), list, folded), ...(folded ? [] : list.map((s) => this.sessionRow(r, s, t)))];
     };
     // Navigation follows what is on screen.
     const order: string[] = [];
@@ -549,9 +569,9 @@ export default class Spaces extends View {
     setAgentOrder(order);
     const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
     const loading = (m: string | null) => {
-      const layout = machines().find(k => k.name === m)?.layout;
+      const layout = ms.find(k => k.name === m)?.layout;
       return layout === "loading" || (!layout && this.machines.some(k => k.name === m && k.state === "connected"))
-        || spaces().some(s => (s.machine ?? null) === m && !this.shown.has(s.id));
+        || sp.some(s => (s.machine ?? null) === m && !this.shown.has(s.id));
     };
     const loadingRow = (m: string | null) => h_flex().id(`machine-loading-${m ?? "local"}`).h(28).flex_none().px(collapsed ? 0 : 8).items_center().when(collapsed, el => el.justify_center()).text_size(12).text_color(t.dim).child(collapsed ? "…" : "Loading…");
     if (!remote.length) return loading(null) && !rows.length ? [loadingRow(null)] : rows.flatMap(add);
@@ -643,15 +663,14 @@ export default class Spaces extends View {
     return div().size(7).mx(3).flex_none().rounded(4).bg(t.done).tooltip(label);
   }
 
-  row({ w, i, g, tree }: Row, t: Theme, info: SpaceFacts, sessions: Session[], folded: boolean): Element {
+  row({ w, i, g, tree }: Row, t: Theme, ctx: RowCtx, info: SpaceFacts, sessions: Session[], folded: boolean): Element {
     const on = w.active;
-    const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
-    const colors = (shared("space.colors") ?? {}) as Record<string, string>;
-    const color = colors[w.id] ?? "ansi6";
+    const fromIndex = ctx.fromIndex;
+    const color = ctx.colors[w.id] ?? "ansi6";
     const fill = ((color.startsWith("#") ? color : (MARK[color] ?? t[color])) ?? t.ansi6) as Color;
     // A soft tile: the hue at a fifth, a thin edge of the same, and the glyph
     // in the hue on dark themes (foreground reads better on light ones).
-    const ink = settings().dark !== false ? fill : t.foreground;
+    const ink = ctx.dark ? fill : t.foreground;
     const glyph = tree ? TREE_GLYPH : HOME_GLYPH[w.name] ?? null;
     const tile = (child: Element) => h_flex().size(18).flex_none().rounded(5)
       .bg((fill + "2e") as Color).border_1().border_color((fill + "33") as Color)
@@ -789,12 +808,17 @@ export default class Spaces extends View {
     const palette = PROJECT_COLORS;
     const sp = spaces();
     const ids = new Set(sp.map(p => p.id));
-    const kept = Object.fromEntries(Object.entries((shared("space.colors") ?? {}) as Record<string, string>).filter(([id]) => ids.has(id)));
-    let changed = Object.keys(kept).length !== Object.keys((shared("space.colors") ?? {}) as Record<string, string>).length;
+    const stored = (shared("space.colors") ?? {}) as Record<string, string>;
+    const kept = Object.fromEntries(Object.entries(stored).filter(([id]) => ids.has(id)));
+    // How many spaces wear each color, kept current as `kept` is reassigned.
+    const uses: Record<string, number> = {};
+    const count = (c: string) => uses[c] ?? 0;
+    for (const c of Object.values(kept)) uses[c] = count(c) + 1;
+    let changed = Object.keys(kept).length !== Object.keys(stored).length;
     for (const p of sp) {
       if (kept[p.id] || p.name === "~") continue;
-      const uses = (c: string) => Object.values(kept).filter(v => v === c).length;
-      kept[p.id] = palette.reduce((best, c) => uses(c) < uses(best) ? c : best);
+      kept[p.id] = palette.reduce((best, c) => count(c) < count(best) ? c : best);
+      uses[kept[p.id]] = count(kept[p.id]) + 1;
       changed = true;
     }
     // The old six slots ran out and repeated a hue; give the later space one
@@ -804,10 +828,11 @@ export default class Spaces extends View {
       const c = kept[p.id];
       if (!c) continue;
       if (!seen.has(c)) { seen.add(c); continue; }
-      const uses = (x: string) => Object.values(kept).filter(v => v === x).length;
-      const free = palette.find(x => uses(x) === 0);
+      const free = palette.find(x => count(x) === 0);
       if (!free) continue;
+      uses[c] -= 1;
       kept[p.id] = free;
+      uses[free] = count(free) + 1;
       seen.add(free);
       changed = true;
     }
