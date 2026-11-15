@@ -24,7 +24,9 @@
     "strict": true,
     "strictNullChecks": false,
     "useDefineForClassFields": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   },
   "include": ["main.ts", "types/*.d.ts"]
 }

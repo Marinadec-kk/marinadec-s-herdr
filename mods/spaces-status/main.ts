@@ -133,6 +133,10 @@ const rowHeight = ({ tree }: Pick<Row, "tree">) => (tree ? 28 : 30);
 const RAIL_CELL = 32;
 const railCell = (el: Element) => h_flex().flex_none().justify_center().child(el);
 const where = (s: SpaceInfo, ps: PaneInfo[]) => JSON.stringify([s.machine ?? null, place(s, ps)]);
+// The pair every where() key carries — [machine, folder] — typed, so the
+// destructures read as what they are instead of `any`. A repo key
+// (`GitInfo.repo`) is the same pair for the repo folder.
+const parseWhere = (key: string): [string | null, string] => JSON.parse(key);
 const base = (path: string) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
@@ -220,8 +224,8 @@ export default class Spaces extends View {
   pending: Set<string>;
   // pane -> an agent working or a program in front of its shell
   busy: Record<string, boolean>;
-  // machine -> its layout was readable at the last look
-  ready: Record<string, boolean>;
+  // machine (null: this computer) -> its layout was readable at the last look
+  ready: Record<string | null, boolean>;
   // space -> its where() at the last look
   at: Record<string, string>;
   // local repos' git folders
@@ -282,7 +286,7 @@ export default class Spaces extends View {
     // Moved there: what it knew of that place may be old.
     const at: Record<string, string> = {};
     for (const s of sp) at[s.id] = where(s, ps);
-    const keys = new Set(Object.values(at).filter((k) => JSON.parse(k)[1]));
+    const keys = new Set(Object.values(at).filter((k) => parseWhere(k)[1]));
     const due = new Set([...keys].filter((k) => !(k in this.git)));
     for (const [id, k] of Object.entries(at)) if (this.at[id] && this.at[id] !== k && keys.has(k)) due.add(k);
     this.at = at;
@@ -297,13 +301,13 @@ export default class Spaces extends View {
     this.busy = busy;
     for (const m of machines()) {
       const ready = m.layout === "ready";
-      if (ready && this.ready[m.name] === false) for (const k of keys) if (JSON.parse(k)[0] === m.name) due.add(k);
+      if (ready && this.ready[m.name] === false) for (const k of keys) if (parseWhere(k)[0] === m.name) due.add(k);
       this.ready[m.name] = ready;
     }
     if (window().active) {
       for (const k of keys) {
         const asks = this.git[k] || this.unsure.has(k);
-        if (asks && !this.folded.has(JSON.parse(k)[0]) && now - (this.checked[k] ?? 0) > FALLBACK) due.add(k);
+        if (asks && !this.folded.has(parseWhere(k)[0]) && now - (this.checked[k] ?? 0) > FALLBACK) due.add(k);
       }
     }
     return due;
@@ -380,7 +384,7 @@ export default class Spaces extends View {
         this.pending.clear();
         await Promise.all(keys.map((key) => this.check(key, cx)));
       }
-      const used = new Set(Object.values(this.git).filter(Boolean).map((g) => JSON.parse(g.repo)).filter(([on]) => !on).map(([, repo]) => repo));
+      const used = new Set(Object.values(this.git).filter(Boolean).map((g) => parseWhere(g.repo)).filter(([on]) => !on).map(([, repo]) => repo));
       for (const repo of this.watching) if (!used.has(repo)) this.watching.delete(repo);
       this.refreshing = false;
       cx.notify();
@@ -389,7 +393,7 @@ export default class Spaces extends View {
 
   // One place's git: branch, ahead/behind, its repo.
   async check(key: string, cx: Context) {
-    const [on, cwd] = JSON.parse(key);
+    const [on, cwd] = parseWhere(key);
     this.checked[key] = Date.now();
     this.unsure.delete(key);
     try {
