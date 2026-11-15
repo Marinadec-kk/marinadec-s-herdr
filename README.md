@@ -77,15 +77,30 @@ Nothing else in the layout is specific to this mod: the sidebar, tabs, pane card
 - **Theme:** the layout pins `{ "light": "paper", "dark": "ink" }`; change the root `theme` or use the theme picker.
 - **Fixed icons:** only `~` and worktrees use SVGs. If you want to change them, replace `mods/spaces-status/icons/home.svg` or `account_tree.svg`; they must use `fill="currentColor"` so the tile can tint them.
 
+## Build
+
+The mod is written in TypeScript; Herdr loads JavaScript. `main.js` in this repository is the compiled output and is committed, so the install above needs no toolchain. To change the mod, edit `main.ts` and rebuild:
+
+```sh
+npm install
+npm run build
+```
+
+`npm run check` type-checks without writing. The `tsconfig.json` follows the settings Herdr writes into every mod's `jsconfig.json`: `strict` with `strictNullChecks` off, because a View assigns its state in `init` and TypeScript cannot see that as definite assignment. The declaration files in `mods/spaces-status/types/` are Herdr's own, snapshotted from 0.1.15; copy a newer one over from `~/.config/herdr-app/mods/<any mod>/gpui-kit.d.ts` when the mod moves to a newer Herdr.
+
 ## Files
 
 ```
-layouts/main-status.json      the layout: sidebar, tabs, panes, status bar
-mods/spaces-status/main.js    the Spaces sidebar mod
-mods/spaces-status/mod.json   mod metadata (place: none)
-mods/spaces-status/icons/     home.svg and account_tree.svg
-keys.json                     the optional alt-shift-f / Yazi binding
-RECIPE.md                     the build brief: what it is and how to recreate it
+layouts/main-status.json           the layout: sidebar, tabs, panes, status bar
+mods/spaces-status/main.ts         the Spaces sidebar mod, in TypeScript
+mods/spaces-status/main.js         what Herdr loads: main.ts compiled (committed)
+mods/spaces-status/mod.json        mod metadata (place: none)
+mods/spaces-status/tsconfig.json   the mod's TypeScript build
+mods/spaces-status/types/          Herdr's declarations, snapshotted from 0.1.15
+mods/spaces-status/icons/          home.svg and account_tree.svg
+package.json                       npm run build: tsc, no runtime dependencies
+keys.json                          the optional alt-shift-f / Yazi binding
+RECIPE.md                          the build brief: what it is and how to recreate it
 ```
 
 ## Update

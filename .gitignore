@@ -1,2 +1,4 @@
 jsconfig.json
 *.d.ts
+!mods/spaces-status/types/*.d.ts
+node_modules

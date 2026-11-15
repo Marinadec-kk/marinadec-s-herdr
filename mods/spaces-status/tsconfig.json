@@ -1,0 +1,30 @@
+{
+  "// why": [
+    "The runtime loads main.js, so main.ts compiles beside it: the same",
+    "settings Herdr writes into every mod's jsconfig.json, with emit on.",
+    "`strictNullChecks` is off for the runtime's own reason: a View assigns",
+    "its state in `init`, which TypeScript cannot see as definite",
+    "assignment, so every field would read as possibly-undefined and every",
+    "use would want a `?.` that means nothing at run time.",
+    "",
+    "`types/gpui-kit.d.ts` is the declaration file Herdr writes beside every",
+    "mod, snapshotted from Herdr 0.1.15: it declares `gpui-kit`, `gpui-base`",
+    "and `herdr`, the whole API surface this mod touches. Refresh it from",
+    "`~/.config/herdr-app/mods/<any mod>/gpui-kit.d.ts` when the mod moves",
+    "to a newer Herdr. It is the only include beside the source, so the",
+    "copy the app writes into this folder after install never doubles the",
+    "declarations."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": [],
+    "strict": true,
+    "strictNullChecks": false,
+    "useDefineForClassFields": false,
+    "skipLibCheck": true
+  },
+  "include": ["main.ts", "types/*.d.ts"]
+}

@@ -64,7 +64,7 @@ root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
    └─ status (block, 28 px, mod workspace-status)
 ```
 
-**Mod** — `mods/spaces-status/`, cloned from Herdr's `spaces` 0.1.15, `place: none` (the layout places it). `main.js` is one `View` class:
+**Mod** — `mods/spaces-status/`, cloned from Herdr's `spaces` 0.1.15, `place: none` (the layout places it). `main.ts` is one `View` class, in TypeScript; `main.js`, what Herdr loads, is its `tsc` output:
 
 - `init` seeds state, starts a 15 s `refreshMachines` timer and a 250 ms `checkNew` timer, and reads `machines.folded` / `spaces.sessions.folded` from `localStorage`.
 - `render` assigns/repairs space colors through `shared("space.colors")` / `setShared`, then draws machine groups. `narrow()` reads the live sidebar width from `layout()`.
@@ -77,10 +77,15 @@ root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
 
 **Assets.** `mods/spaces-status/icons/` holds two Material Icons Round SVGs: `home` and `account_tree`. Each has `fill="currentColor"` so `svg(...).text_color(ink)` tints it.
 
+**Build.** `main.js` is compiled from `main.ts` with `npm run build` (`package.json` holds only TypeScript as a dev dependency; `main.js` is committed so an install works without one). The `tsconfig.json` repeats the settings Herdr writes into every mod's `jsconfig.json` — `strict` with `strictNullChecks` off (a View assigns its state in `init`, which TypeScript cannot see as definite assignment), ES2022, no DOM lib — and `types/gpui-kit.d.ts` is the declaration file Herdr writes beside every mod, snapshotted from 0.1.15: it declares `gpui-kit`, `gpui-base` and `herdr` whole.
+
 **Dependencies.** Herdr's shipped `workspace-chrome` (brand, footer, monitor/server, chevrons, plus, spinner), `tabs`, `pane`, `files`, `changes`, `workspace-status` and `menu` mods. No programs beyond `git` for the optional tails. No network access.
 
 ## Watch out
 
+- **main.js is generated.** Edit `main.ts` and run `npm run build`; never edit `main.js` by hand.
+- **The app writes into the mod folder.** On install Herdr drops its own `gpui-kit.d.ts` and `jsconfig.json` beside the mod; `.gitignore` keeps them out of the repository, and the tsconfig includes only `types/`, so the declarations are never doubled.
+- **The type snapshot is pinned** to Herdr 0.1.15, like the rest of the mod. A newer Herdr rewrites `gpui-kit.d.ts` (with `herdr` inside) into every mod folder it sees: copy it over `types/gpui-kit.d.ts` when the mod moves up.
 - **Version.** Built against Herdr 0.1.15. The layout references shipped mod names and the mod reads the 0.1.15 data shapes (`spaces`, `agents`, `terminals`, `machines`). A future Herdr that renames a shipped mod or a field will need a matching edit.
 - **The agents block is intentionally absent.** Sessions live inline. Adding an `agents` block back would draw a second list and compete for `setAgentOrder`.
 - **State overrides the file.** On a machine that already used `main-status`, `layouts/.state/main-status.json` can override the sidebar width and theme. A fresh install uses the file's 299 px and ink/paper.
@@ -94,6 +99,8 @@ root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
 
 ## Done when
 
+- `npm run check` passes (the TypeScript compiles clean).
+- `npm run build` reproduces `main.js` from `main.ts`.
 - `herdr-app check mods/spaces-status` passes.
 - `herdr-app status` shows `"layout": "main-status"` and `"errors": []`.
 - A screenshot shows a row under every space that has an agent, harness icons and statuses on those rows, and the chevron at the far right.

@@ -1,0 +1,11 @@
+{
+  "name": "marinadec-s-herdr",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p mods/spaces-status",
+    "check": "tsc -p mods/spaces-status --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
