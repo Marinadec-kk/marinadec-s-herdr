@@ -8,7 +8,7 @@ import {
   setShared, shared, spaces, updates, window,
 } from "herdr";
 import type { PaneInfo, SpaceInfo, TabInfo } from "herdr";
-import { PIXEL_FONT, record } from "./appearance-model.js";
+import { UI_FONT, UI_FONT_SIZE, record } from "./appearance-model.js";
 import type { Theme } from "./appearance-model.js";
 import { pixelButton, pixelIcon, pixelStatus, programIcon } from "./pixel-ui.js";
 import type { PixelGlyph } from "./pixel-ui.js";
@@ -61,7 +61,7 @@ function paneFrame(node: LayoutNode | undefined): LayoutNode["content"] {
 
 function rootBar(t: Theme): Element {
   return h_flex().size_full().min_w(0).items_center().bg(t.chrome)
-    .font_family(PIXEL_FONT).text_size(16).text_color(t.muted);
+    .font_family(UI_FONT).text_size(UI_FONT_SIZE).text_color(t.muted);
 }
 
 export function tabLabel(tab: TabInfo, lead: PaneInfo | undefined): string {
@@ -256,7 +256,7 @@ class PixelBars implements ChromeView {
           .text_color(t.muted).hover(el => el.bg(t.hover).text_color(t.foreground))
           .on_click(action).child(pixelIcon(glyph, t.muted)).when(!collapsed, el => el.child(label));
       const ready = div().size(6).bg(t.accent);
-      return v_flex().size_full().bg(t.chrome).font_family(PIXEL_FONT).text_size(16)
+      return v_flex().size_full().bg(t.chrome).font_family(UI_FONT).text_size(UI_FONT_SIZE)
         .border_t(2).border_color(t.border).px(8).pt(4).pb(8).when(collapsed, el => el.px(0).items_center())
         .child(row("settings", "settings", "SETTINGS", () => run("app.settings"))
           .when(Boolean(updates().app.ready), el => el.child(collapsed ? ready.absolute().top(5).right(6) : ready)))

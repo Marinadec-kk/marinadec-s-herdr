@@ -5,6 +5,9 @@
     "version": "0.1.15"
   },
   "type": "row",
+  "font": "Liberation Mono",
+  "font_size": 14,
+  "ui_font": "Liberation Sans",
   "children": [
     {
       "id": "sidebar",

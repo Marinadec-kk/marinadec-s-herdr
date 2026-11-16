@@ -1,12 +1,12 @@
 # Marinadec's Herdr
 
-A Herdr pixel workspace with an inline agent board: each agent tab becomes a row under its space, with harness, live status and sub-agent count. The accepted Critters foundation now extends across the primary window chrome; terminal content and fonts stay unchanged.
+A Herdr pixel workspace with an inline agent board: each agent tab becomes a row under its space, with harness, live status and sub-agent count. The accepted Critters foundation extends across the primary window chrome, with Liberation Mono 14 terminals and Liberation Sans 14 as the base UI typography.
 
 ## What you see
 
 **The window.** A 299 px sidebar on the left (min 44, max 480), a 1 px `border` divider, and the work area on a `canvas` background. The layout pins `{ "light": "paper", "dark": "ink" }`, uses 14×12 terminal padding, hides the system title bar and puts macOS traffic lights at `[12, 16]`.
 
-**Pixel typography and controls.** All owned UI uses bundled Tiny5; tests inspect its actual cmap for every Russian letter including Ё/ё. Pixelify Sans was investigated but rejected for incomplete Cyrillic. Chrome controls use original bitmap glyphs from `pixel-ui.ts`; program/harness logos retain their own artwork. Rounded cards/buttons were replaced by sharp frames. Global settings are not edited.
+**Typography and pixel controls.** The layout sets `font: "Liberation Mono"`, `font_size: 14` and `ui_font: "Liberation Sans"`. All owned UI uses `UI_FONT = "Liberation Sans"` and `UI_FONT_SIZE = 14` from `appearance-model.ts`; headings, hints and avatar glyphs retain their contextual sizes. Both Liberation families are bundled with regular, bold, italic and bold italic faces and their OFL license. Chrome controls use original bitmap glyphs from `pixel-ui.ts`; program/harness logos retain their own artwork. Cards and buttons use sharp frames.
 
 **The sidebar.** Three copies of `spaces-status`: 46 px `props.chrome: "brand"`, the ordinary Spaces list with weight 1/min 90, and 69 px `props.chrome: "footer"`. The list background is `chrome`.
 
@@ -14,9 +14,9 @@ A Herdr pixel workspace with an inline agent board: each agent tab becomes a row
 
 **Machine headers.** 58 px high, 4 px vertical margin, 8 px horizontal padding, square `machineColor + "18"` fill. The 50×44 static scene holds a 32 px chosen avatar, tiny stars and ground. Names are 18 px uppercase with full-name tooltips; the 13 px subtitle says `Local/Remote · N spaces`. Settings, add, connection indicator and fold keep their original actions. Login guidance and Copy survive folding; rebuilt machines show Connect. Offline scenes fade to half opacity.
 
-**Space groups and rows.** One square frame wraps each space and all its sessions: 1 px tinted border, 3 px colored left edge, faint tint, and 8 px bottom gap. Active borders are stronger; worktree groups indent 12 px. Rows remain 30 px (28 for worktrees), with 8 px horizontal padding/9 px gap. Avatars are square 22×22 tiles with a 20 px selected glyph; auto letters use Tiny5. Names are 16 px, with the same unusual-only Git tail and aggregate/fold controls.
+**Space groups and rows.** One square frame wraps each space and all its sessions: 1 px tinted border, 3 px colored left edge, faint tint, and 8 px bottom gap. Active borders are stronger; worktree groups indent 12 px. Rows remain 30 px (28 for worktrees), with 8 px horizontal padding/9 px gap. Avatars are square 22×22 tiles with a 20 px selected glyph; auto letters use Liberation Sans. Names are 14 px, with the same unusual-only Git tail and aggregate/fold controls.
 
-**Session rows.** 26 px high, 12 px left/8 px right padding, 8 px gap, no rounding. The session section has a tinted top separator and 2 px gaps. A small square leads the harness icons, 16 px label, `+N` descendants and status. Active/settled/hover semantics are unchanged.
+**Session rows.** 26 px high, 12 px left/8 px right padding, 8 px gap, no rounding. The session section has a tinted top separator and 2 px gaps. A small square leads the harness icons, 14 px label, `+N` descendants and status. Active/settled/hover semantics are unchanged.
 
 **Statuses.** `pixelStatus` is shared by sidebar/tabs/pane headers: rotating pixel pair for working, square `!` for blocked, filled square for done, outlined square for idle. Meanings, colors and sources have not changed; machine rollup remains a later task.
 
@@ -62,7 +62,8 @@ Machine defaults are stored, not hash-based. On first assignment, local comes fi
 
 ```
 root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
-      theme {light paper, dark ink}, terminal_padding [14,12])
+      theme {light paper, dark ink}, terminal_padding [14,12],
+      font "Liberation Mono", font_size 14, ui_font "Liberation Sans")
 ├─ sidebar (column, 299 px, min 44, max 480, chrome, resizable false)
 │  ├─ brand (block, 46 px, spaces-status props.chrome=brand, window_drag)
 │  ├─ spaces (block, weight 1, min 90, mod spaces-status)
@@ -92,7 +93,7 @@ root (row, canvas, divider 1 border, titlebar none, traffic_lights [12,16],
 - Data comes from `spaces()`, `agents()`, `terminals()`, `machines()`, `panes()`, `layout()`, `theme()`, `settings()`, `shared()` and `setAgentOrder()`.
 - Every live-data read copies the whole list: sidebar `render()` takes one spaces/panes/machines/agents/terminals/settings snapshot and passes it through grouped/ordered/rows. Mouse handlers still reread on their events. No duplicate spaces/colors read or per-ordering machine read remains in the render path.
 
-**Assets.** Two tintable home/tree Material SVGs, four original 12×12 critter SVGs, five local Material fonts and Tiny5 (OFL 1.1). `sync-plushies.mjs` imports 32 unchanged ground sprites from pinned SS14 commit `0d1b13963500df557e5f092c0094b9da83b30ac9`, with original metadata, source hashes and per-asset credits/licenses. Assets retain CC BY-SA 3.0/4.0 or CC0, **not MIT**; the non-commercial vulp set is excluded. Runtime never downloads art/fonts.
+**Assets.** Two tintable home/tree Material SVGs, four original 12×12 critter SVGs, five local Material fonts, Liberation Sans/Mono 2.1.5 and Tiny5. Liberation and Tiny5 retain their OFL 1.1 licenses; `fonts/liberation-source.json` records the Liberation font provenance and hashes. `sync-plushies.mjs` imports 32 unchanged ground sprites from pinned SS14 commit `0d1b13963500df557e5f092c0094b9da83b30ac9`, with original metadata, source hashes and per-asset credits/licenses. Assets retain CC BY-SA 3.0/4.0 or CC0, **not MIT**; the non-commercial vulp set is excluded. Runtime never downloads art/fonts.
 
 Google's five Material icon fonts live in `fonts/` with their Apache license and SHA-256 source manifest. `material-catalog.ts/js` is generated by the development-only `scripts/sync-material-icons.mjs` from Google's pinned `material-design-icons` commit `10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7`; Google Fonts metadata supplies search tags/categories. No network/file reads are needed to browse the bundled catalog at runtime.
 

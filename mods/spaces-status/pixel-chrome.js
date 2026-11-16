@@ -3,7 +3,7 @@
 import { div, image } from "gpui-kit";
 import { h_flex, v_flex, ScrollHandle } from "gpui-base";
 import { agents, home, keys, layout, openOverlay, panes, props, run, settings, theme, setShared, shared, spaces, updates, window, } from "herdr";
-import { PIXEL_FONT, record } from "./appearance-model.js";
+import { UI_FONT, UI_FONT_SIZE, record } from "./appearance-model.js";
 import { pixelButton, pixelIcon, pixelStatus, programIcon } from "./pixel-ui.js";
 export function createPixelChrome(raw) {
     const role = record({ ...record(raw), ...record(props()) }).chrome;
@@ -45,7 +45,7 @@ function paneFrame(node) {
 }
 function rootBar(t) {
     return h_flex().size_full().min_w(0).items_center().bg(t.chrome)
-        .font_family(PIXEL_FONT).text_size(16).text_color(t.muted);
+        .font_family(UI_FONT).text_size(UI_FONT_SIZE).text_color(t.muted);
 }
 export function tabLabel(tab, lead) {
     const program = lead?.program;
@@ -254,7 +254,7 @@ class PixelBars {
                 .text_color(t.muted).hover(el => el.bg(t.hover).text_color(t.foreground))
                 .on_click(action).child(pixelIcon(glyph, t.muted)).when(!collapsed, el => el.child(label));
             const ready = div().size(6).bg(t.accent);
-            return v_flex().size_full().bg(t.chrome).font_family(PIXEL_FONT).text_size(16)
+            return v_flex().size_full().bg(t.chrome).font_family(UI_FONT).text_size(UI_FONT_SIZE)
                 .border_t(2).border_color(t.border).px(8).pt(4).pb(8).when(collapsed, el => el.px(0).items_center())
                 .child(row("settings", "settings", "SETTINGS", () => run("app.settings"))
                 .when(Boolean(updates().app.ready), el => el.child(collapsed ? ready.absolute().top(5).right(6) : ready)))

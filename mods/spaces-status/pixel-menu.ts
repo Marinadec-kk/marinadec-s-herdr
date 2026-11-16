@@ -3,7 +3,7 @@ import { div } from "gpui-kit";
 import type { AsyncContext, Context, Element } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { closeOverlay, keys, knownAgents, openOverlay, panes, props, run, setShared, shared, spaces, theme } from "herdr";
-import { PIXEL_FONT, record } from "./appearance-model.js";
+import { UI_FONT, UI_FONT_SIZE, record } from "./appearance-model.js";
 import type { Theme } from "./appearance-model.js";
 import { pixelIcon, programIcon } from "./pixel-ui.js";
 import type { PixelGlyph } from "./pixel-ui.js";
@@ -86,7 +86,7 @@ class PixelMenu implements ChromeView {
     const t = theme() as Theme, items = this.items(), enabled = items.filter(i => i.enabled !== false);
     this.at = Math.min(this.at, Math.max(0, enabled.length - 1));
     return v_flex().id("pixel-menu").track_focus(this.handle).w_full().min_h(0).max_h(500).p(5).gap(2)
-      .font_family(PIXEL_FONT).text_size(16).bg(t.popover).border(2).border_color(t.border)
+      .font_family(UI_FONT).text_size(UI_FONT_SIZE).bg(t.popover).border(2).border_color(t.border)
       .on_key_down((event, cx) => {
         if (event.key === "escape") closeOverlay(this.overlay);
         else if (event.key === "down") this.at = (this.at + 1) % enabled.length;

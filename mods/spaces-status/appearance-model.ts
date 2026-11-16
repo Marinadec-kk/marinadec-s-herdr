@@ -4,7 +4,8 @@ import { PLUSHIES } from "./plush-catalog.js";
 import type { PlushId } from "./plush-catalog.js";
 
 export type Theme = Record<string, Color>;
-export const PIXEL_FONT = "Tiny5";
+export const UI_FONT = "Liberation Sans";
+export const UI_FONT_SIZE = 14;
 export const APPEARANCE_KEY = "spaces-status.appearance";
 export const MARK: Record<string, Color> = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 export const PROJECT_COLORS = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1", "#2aa8c9", "#7f9f4a", "#a0785a", "#b06ab3"] as const;

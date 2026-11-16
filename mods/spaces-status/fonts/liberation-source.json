@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/liberationfonts/liberation-fonts",
+  "version": "2.1.5",
+  "packages": [
+    "liberation-mono-fonts-2.1.5-11.el10.noarch",
+    "liberation-sans-fonts-2.1.5-11.el10.noarch"
+  ],
+  "license": "OFL-Liberation.txt",
+  "files": {
+    "LiberationMono-Bold.ttf": "5c853b7ac5bd429dbc0aebb4a6a9d2de0150f700b2282c7d0e44fbeabf763e7b",
+    "LiberationMono-BoldItalic.ttf": "b4b42d4d3450f58a098a876ff65ffa0014f5bd2a3d7f7a503119c4fe3c1c3dd4",
+    "LiberationMono-Italic.ttf": "35ec729737bea846861d9f04bc306eb5746ae9e96cdf29c96f9bce15b7767e4d",
+    "LiberationMono-Regular.ttf": "e29684dcabe9f8396a41b4e411f85e4d0d005de04e3d262db4dbab10f4f55008",
+    "LiberationSans-Bold.ttf": "c0c2a000f404023856480b15f441bf4df38d4d37dccfefaa0c109cb144e8ad0d",
+    "LiberationSans-BoldItalic.ttf": "0874454d79f002c03c87afc6b24a0abfd64b4db1a3f43ec5ef8aa0f782e27c14",
+    "LiberationSans-Italic.ttf": "b3bc2bffa0a4a93a7a680b1c647a54f5356369be366ea84b893ccf35244e4e8b",
+    "LiberationSans-Regular.ttf": "049f9b9716c6e1d7ae328c3addb7f6b94b9826f3614ae68e9433890ea1b57151"
+  }
+}

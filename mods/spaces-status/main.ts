@@ -10,7 +10,7 @@ import type { AsyncContext, Color, Context, Element } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, spaces, machines, panes, run, exec, hc, theme, settings, shared, setShared, setAgentOrder, watchFolder, window, layout } from "herdr";
 import type { AgentInfo, PaneInfo, Program, SpaceInfo, Status, TabInfo } from "herdr";
-import { APPEARANCE_KEY, PIXEL_FONT, assignSpaceColors, ensureMachineDefaults, machineKey, readAppearance, resolveColor } from "./appearance-model.js";
+import { APPEARANCE_KEY, UI_FONT, UI_FONT_SIZE, assignSpaceColors, ensureMachineDefaults, machineKey, readAppearance, resolveColor } from "./appearance-model.js";
 import type { AppearanceState, Theme } from "./appearance-model.js";
 import { createAppearanceOverlay, openAppearance, openSpaceMenu } from "./appearance-editor.js";
 import type { AppearanceOverlay } from "./appearance-editor.js";
@@ -841,7 +841,7 @@ export default class Spaces extends View {
     const colors = assignSpaceColors(sp, storedColors, appearance.spaces);
     if (JSON.stringify(colors) !== JSON.stringify(storedColors ?? {})) setShared("space.colors", colors);
     const snapshot: RenderSnapshot = { sp, ps, ms, all, allTerminals, colors, appearance, machineNames, dark: settings().dark !== false };
-    return v_flex().size_full().min_h(0).bg(t.chrome).font_family(PIXEL_FONT).text_size(16)
+    return v_flex().size_full().min_h(0).bg(t.chrome).font_family(UI_FONT).text_size(UI_FONT_SIZE)
       .child(h_flex().h(31).pl(12).pr(10).items_center().justify_between().text_size(14).text_color(t.dim)
         .when(collapsed, el => el.pl(0).pr(0).justify_center())
         .when(!collapsed, el => el.child("SPACES"))

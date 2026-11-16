@@ -1,6 +1,6 @@
 import { div, image } from "gpui-kit";
 import type { Color, Element } from "gpui-kit";
-import { MATERIAL_FAMILIES, PIXEL_FONT } from "./appearance-model.js";
+import { MATERIAL_FAMILIES, UI_FONT } from "./appearance-model.js";
 import type { AvatarChoice } from "./appearance-model.js";
 import { MATERIAL_ICONS } from "./material-catalog.js";
 import { PLUSHIES } from "./plush-catalog.js";
@@ -29,5 +29,5 @@ export function renderAvatar(
       .font_family(MATERIAL_FAMILIES[family].font).text_size(size).text_color(color).child(String.fromCodePoint(code));
   }
   return div().size(size).flex_none().flex().items_center().justify_center()
-    .font_family(PIXEL_FONT).text_size(size * 0.9).font_bold().text_color(color).child([...name][0]?.toUpperCase() ?? "?");
+    .font_family(UI_FONT).text_size(size * 0.9).font_bold().text_color(color).child([...name][0]?.toUpperCase() ?? "?");
 }

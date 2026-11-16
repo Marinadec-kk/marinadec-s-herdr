@@ -236,10 +236,12 @@ function tabsFixture() {
   ];
 }
 
-test("all chrome roles render pixel typography without sidebar polling or preferences writes", () => {
+test("all chrome roles render Liberation Sans 14 without sidebar polling or preferences writes", () => {
   for (const role of ["brand", "footer", "tabs", "status"]) {
     const view = chrome(role);
-    assert.equal(view.render().props.font_family, "Tiny5", role);
+    const tree = view.render();
+    assert.equal(tree.props.font_family, "Liberation Sans", role);
+    assert.equal(tree.props.text_size, 14, role);
   }
   assert.equal(env.spawns, 0);
   assert.equal(env.timers, 0);

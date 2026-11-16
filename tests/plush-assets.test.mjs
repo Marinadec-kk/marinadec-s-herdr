@@ -73,13 +73,17 @@ function glyphFor(font, code) {
   return 0;
 }
 
-test("bundled pixel font has every Russian letter (including Ё/ё) and its OFL license", async () => {
+test("bundled text fonts have every Russian letter (including Ё/ё), pinned hashes and OFL licenses", async () => {
   const root = new URL("../mods/spaces-status/fonts/", import.meta.url);
-  const font = await readFile(new URL("Tiny5.ttf", root));
-  const manifest = JSON.parse(await readFile(new URL("tiny5-source.json", root), "utf8"));
-  assert.equal(createHash("sha256").update(font).digest("hex"), manifest.sha256);
-  for (const char of "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя") {
-    assert.ok(glyphFor(font, char.codePointAt(0)) > 0, `Missing glyph: ${char}`);
+  const tiny5 = JSON.parse(await readFile(new URL("tiny5-source.json", root), "utf8"));
+  const liberation = JSON.parse(await readFile(new URL("liberation-source.json", root), "utf8"));
+  for (const [file, hash] of Object.entries({ "Tiny5.ttf": tiny5.sha256, ...liberation.files })) {
+    const font = await readFile(new URL(file, root));
+    assert.equal(createHash("sha256").update(font).digest("hex"), hash, file);
+    for (const char of "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя") {
+      assert.ok(glyphFor(font, char.codePointAt(0)) > 0, `${file}: missing glyph ${char}`);
+    }
   }
   assert.match(await readFile(new URL("OFL-Tiny5.txt", root), "utf8"), /SIL OPEN FONT LICENSE/);
+  assert.match(await readFile(new URL(liberation.license, root), "utf8"), /SIL OPEN FONT LICENSE/);
 });

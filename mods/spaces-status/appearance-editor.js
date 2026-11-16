@@ -1,7 +1,7 @@
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex, Input, InputState } from "gpui-base";
 import { closeOverlay, openOverlay, props, run, shared, setShared, spaces, theme } from "herdr";
-import { APPEARANCE_KEY, MATERIAL_FAMILIES, PIXELS, PIXEL_FONT, PROJECT_COLORS, machineKey, normalizeColor, profileFor, readAppearance, record, resolveColor, withProfile, } from "./appearance-model.js";
+import { APPEARANCE_KEY, MATERIAL_FAMILIES, PIXELS, UI_FONT, UI_FONT_SIZE, PROJECT_COLORS, machineKey, normalizeColor, profileFor, readAppearance, record, resolveColor, withProfile, } from "./appearance-model.js";
 import { renderAvatar } from "./appearance-avatar.js";
 import { MATERIAL_ICONS } from "./material-catalog.js";
 import { PLUSHIES } from "./plush-catalog.js";
@@ -133,7 +133,7 @@ class AppearanceEditor {
         const shown = matches.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
         const field = (text) => div().text_size(14).text_color(t.muted).child(text);
         const input = (value) => Input.new(value).h(32).flex_none().px(9).rounded(0)
-            .border_1().border_color(t.input).bg(t.background).text_size(16).text_color(t.foreground);
+            .border_1().border_color(t.input).bg(t.background).text_size(UI_FONT_SIZE).text_color(t.foreground);
         const choose = (avatar, cx) => { this.avatar = avatar; cx.notify(); };
         const categories = ["all", ...CATEGORIES];
         const grid = Array.from({ length: Math.ceil(shown.length / 10) }, (_, row) => h_flex().gap(5).children(shown.slice(row * 10, row * 10 + 10).map(icon => {
@@ -145,7 +145,7 @@ class AppearanceEditor {
                 .child(renderAvatar({ kind: "material", family: this.family, name: icon.name }, 23, color, label));
         })));
         return v_flex().id("appearance-editor").size_full().min_h(0).p(18).gap(12).bg(t.popover)
-            .border(2).border_color(t.border).font_family(PIXEL_FONT).text_color(t.foreground)
+            .border(2).border_color(t.border).font_family(UI_FONT).text_size(UI_FONT_SIZE).text_color(t.foreground)
             .track_focus(this.handle).on_key_down((event, cx) => {
             if (event.key === "escape") {
                 cx.stop_propagation();
@@ -246,7 +246,7 @@ class SpaceMenu {
         const t = theme(), items = this.items();
         const choose = (index) => { closeOverlay(this.overlay); items[index]?.action(); };
         return v_flex().id("space-context").track_focus(this.handle).w_full().min_h(0).p(5).bg(t.popover)
-            .font_family(PIXEL_FONT).border(2).border_color(t.border)
+            .font_family(UI_FONT).text_size(UI_FONT_SIZE).border(2).border_color(t.border)
             .on_key_down((event, cx) => {
             if (event.key === "down")
                 this.selected = (this.selected + 1) % items.length;
@@ -262,7 +262,7 @@ class SpaceMenu {
             cx.notify();
         })
             .children(items.map((item, index) => div().id(`space-action-${index}`).h(32).px(10).flex().items_center()
-            .text_size(16).text_color(t.foreground).cursor_pointer().when(index === this.selected, el => el.bg(t.selected))
+            .text_color(t.foreground).cursor_pointer().when(index === this.selected, el => el.bg(t.selected))
             .hover(el => el.bg(t.hover)).on_click(() => choose(index)).child(item.label)));
     }
 }

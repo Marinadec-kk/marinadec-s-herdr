@@ -2,7 +2,8 @@
 
 A pixel-art workspace for the [Herdr](https://herdr.dev) desktop app. Every agent tab appears under its space with its harness, live status and sub-agent count. Worktrees nest under their checkout; machines and spaces have editable colors and avatars.
 
-- **Pixel chrome.** Tiny5 typography (including the full Russian alphabet), square controls, bitmap glyphs and sharp pane frames across the sidebar, tabs, pane headers, brand/footer and status bar. Terminal fonts/content and global app settings are unchanged.
+- **Liberation typography.** Liberation Mono 14 for terminals and Liberation Sans with a 14 px base size for the interface. Both families are bundled, including regular, bold, italic and bold italic faces with Cyrillic support. Headings, hints and avatar glyphs keep their contextual sizes.
+- **Pixel chrome.** Square controls, bitmap glyphs and sharp pane frames across the sidebar, tabs, pane headers, brand/footer and status bar. Fonts are configured by this layout and its mod.
 - **Clear space groups.** Each space and its sessions share one frame and a 3 px colored edge, with 8 px between groups. Worktrees indent as a group.
 
 - **Inline sessions.** A tab gets a row only if it runs Claude Code, OpenCode, Pi or another agent. The row shows the harness icon, the tab's name, `+N` for sub-agents and the tab's own status.
@@ -119,6 +120,7 @@ For pixel chrome too, use the supplied layout: it places this same mod with `pro
 - **Colors:** use the appearance editor; a manual choice is never rebalanced away. `PROJECT_COLORS` and `MARK` in `mods/spaces-status/appearance-model.ts` define the automatic palette; rebuild after editing it. Space colors are also published to Herdr's shared `space.colors`, so the shipped picker uses the same color.
 - **Sidebar width:** the layout starts at 299 px; drag the divider or edit the `sidebar` size in `layouts/main-status.json`. Below 160 px the rail takes over.
 - **Theme:** the layout pins `{ "light": "paper", "dark": "ink" }`; change the root `theme` or use the theme picker.
+- **Fonts:** the layout sets `font: "Liberation Mono"`, `font_size: 14` and `ui_font: "Liberation Sans"`. The mod's `UI_FONT` and `UI_FONT_SIZE` in `appearance-model.ts` set its base UI typography to Liberation Sans 14; rebuild after changing them.
 - **Saved appearance:** choices live locally in shared `spaces-status.appearance`, keyed by space id or machine identity (`local` / `remote:<name>`), not by row position or space name. Space renaming does not change its avatar. Renaming a machine connection itself changes its key.
 - **Machine defaults (visual trial 2):** a saved allocator gives machines different colors/mascots while unused slots remain (ten colors, four mascots). Existing assignments survive reordering and restart. Explicit choices may intentionally repeat. Pixel mascots are static identity/decor, not status; the rail keeps its monitor/server icons.
 - **Material Icons:** all five font families and a searchable index are bundled locally; no icon downloads occur while browsing or rendering. Some names are available only in particular styles. Custom avatars currently affect this sidebar, not the shipped tab bar or picker icons.
@@ -151,7 +153,7 @@ mods/spaces-status/appearance-*.js  compiled helper modules (committed)
 mods/spaces-status/pixel-*.ts/js    typed chrome, menus and shared bitmap controls
 mods/spaces-status/material-catalog.* generated full Material Icons search index
 mods/spaces-status/plush-catalog.*  validated SS14 sprite-sheet index
-mods/spaces-status/fonts/           Material fonts + Tiny5, licenses and hashes
+mods/spaces-status/fonts/           Liberation/Material fonts + Tiny5, licenses and hashes
 mods/spaces-status/mod.json        mod metadata (place: none)
 mods/spaces-status/tsconfig.json   the mod's TypeScript build
 mods/spaces-status/tsconfig.appearance.json strict-null check for appearance code
@@ -221,4 +223,4 @@ The checkout can be deleted separately. Herdr retains local preferences such as 
 
 ## License
 
-MIT for original code/art (`LICENSE`). Inherited Herdr layout/sidebar/chrome code retains Apache 2.0 (`LICENSE-APACHE`), as do Google's Material Icons. Tiny5 is SIL OFL 1.1 (`fonts/OFL-Tiny5.txt`). SS14 plush sprites retain their individual **CC BY-SA 3.0/4.0 or CC0** licenses; they are **not** covered by this repository's MIT license. See `icons/plushies/CREDITS.md`, original metadata and pinned source hashes. The non-commercial vulp set is excluded.
+MIT for original code/art (`LICENSE`). Inherited Herdr layout/sidebar/chrome code retains Apache 2.0 (`LICENSE-APACHE`), as do Google's Material Icons. Liberation Fonts and Tiny5 are SIL OFL 1.1 (`mods/spaces-status/fonts/OFL-Liberation.txt` and `mods/spaces-status/fonts/OFL-Tiny5.txt`). SS14 plush sprites retain their individual **CC BY-SA 3.0/4.0 or CC0** licenses; they are **not** covered by this repository's MIT license. See `icons/plushies/CREDITS.md`, original metadata and pinned source hashes. The non-commercial vulp set is excluded.
