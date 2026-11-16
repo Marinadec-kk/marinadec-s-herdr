@@ -252,7 +252,8 @@ class PixelBars implements ChromeView {
           .when(Boolean(updates().app.ready), el => el.child(collapsed ? ready.absolute().top(5).right(6) : ready)))
         .child(row("machine", "plus", "Add machine", openMachineAdd));
     }
-    return rootBar(t).pl(collapsed ? 6 : 12).pr(10).gap(6).border_b(UI.stroke).border_color(t.border)
+    return rootBar(t).pl(collapsed ? 0 : 12).pr(collapsed ? 0 : 10).gap(6).border_b(UI.stroke).border_color(t.border)
+      .when(collapsed, el => el.justify_center())
       .when(w?.platform === "macos" && !w.fullscreen && !collapsed, el => el.pl(76))
       .when(!collapsed, el => el.child(h_flex().flex_1().gap(8).items_center()
         .child(div().text_size(16).font_semibold().text_color(t.foreground).child("HERDR"))))

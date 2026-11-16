@@ -745,7 +745,7 @@ export default class Spaces extends View {
             setShared("space.colors", colors);
         const snapshot = { sp, ps, ms, all, allTerminals, colors, appearance, machineNames, origins, dark, width };
         return surface(t, "bar").flex_col().items_stretch().size_full()
-            .when(collapsed, el => el.child(h_flex().h(32).justify_center().items_center()
+            .when(collapsed, el => el.child(h_flex().w_full().h(UI.control).flex_none().justify_center().items_center()
             .child(pixelButton(t, "space-new", "plus", "New space", () => run("space.new"), { quiet: true }))))
             .child(v_flex().flex_1().min_h(0).px(collapsed ? 0 : 8).pt(8).pb(14).overflow_y_scrollbar().mode("always")
             .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
