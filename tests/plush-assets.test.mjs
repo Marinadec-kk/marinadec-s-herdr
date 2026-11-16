@@ -33,12 +33,12 @@ test("all 32 SS14 sprites validate, retain original dimensions/hashes and non-NC
   assert.equal(readAvatar({ kind: "plush", id: "ss14-does-not-exist" }), undefined);
 });
 
-test("new plush profiles round-trip in v1 without changing older pixel/Material settings", () => {
+test("character profiles round-trip in v2 and retain compatible v1 Material settings", () => {
   const old = readAppearance({ version: 1, machines: { local: { avatar: { kind: "pixel", name: "cat" } } },
     spaces: { s1: { avatar: { kind: "material", family: "round", name: "home" } } } });
-  const next = withProfile(old, { kind: "space", id: "s2" }, { avatar: { kind: "plush", id: PLUSHIES[0].id } });
+  const next = withProfile(old, { kind: "machine", machine: "pi" }, { avatar: { kind: "plush", id: PLUSHIES[0].id } });
   assert.deepEqual(readAppearance(JSON.parse(JSON.stringify(next))), next);
-  assert.deepEqual(next.machines, old.machines);
+  assert.deepEqual(next.machines.local, old.machines.local);
   assert.deepEqual(next.spaces.s1, old.spaces.s1);
 });
 

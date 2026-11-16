@@ -4,26 +4,29 @@
 // end, the harnesses running in it and the space's most urgent status. A space
 // unfolds into its tabs that run agents, each with its own harnesses and status.
 // Click to switch, right-click for its menu, drag to reorder.
-import { View, div, svg } from "gpui-kit";
+import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, spaces, machines, panes, run, exec, hc, theme, settings, shared, setShared, setAgentOrder, watchFolder, window, layout } from "herdr";
-import { APPEARANCE_KEY, UI_FONT, UI_FONT_SIZE, assignSpaceColors, ensureMachineDefaults, machineKey, readAppearance, resolveColor } from "./appearance-model.js";
+import { APPEARANCE_KEY, UI_FONT, UI_FONT_SIZE, assignSpaceColors, ensureMachineDefaults, ensureSpaceDefaults, machineAvatar, machineColor, spaceAvatar, machineKey, readAppearance, resolveColor } from "./appearance-model.js";
+import { tint } from "./appearance-colors.js";
 import { createAppearanceOverlay, openAppearance, openSpaceMenu } from "./appearance-editor.js";
 import { renderAvatar } from "./appearance-avatar.js";
 import { createPixelChrome, findNode } from "./pixel-chrome.js";
 import { createPixelMenu } from "./pixel-menu.js";
 import { pixelIcon, pixelStatus, programIcon as icon } from "./pixel-ui.js";
 // The sidebar's rail goes by its width, not a flag: dragging its edge narrows it too.
-const narrow = () => (findNode(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
+const sidebarWidth = () => findNode(layout(), "sidebar")?.size?.px ?? 299;
 // Where a space is now: its first terminal's live folder, else where it was made.
 // `ps`: panes(), read once by the caller (each read copies every pane).
 function place(s, ps) {
     const tabs = new Set((s.tabs ?? []).map((c) => c.id));
     return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
-const rowHeight = ({ tree }) => (tree ? 28 : 30);
+const rowHeight = ({ tree }) => (tree ? 30 : 32);
 const RAIL_CELL = 32;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
+const ROW_INSET = 8;
+const rowEnd = () => h_flex().size(24).flex_none().items_center().justify_center();
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 // The pair every where() key carries — [machine, folder] — typed, so the
 // destructures read as what they are instead of `any`. A repo key
@@ -33,9 +36,6 @@ const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
-// Automatic glyphs only; explicit avatar choices override these.
-const HOME_GLYPH = { "~": "home" };
-const TREE_GLYPH = "account_tree";
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 const STATUS_WORD = { blocked: "Needs you", done: "Done", working: "Working", idle: "Idle" };
 const clean = (s) => (s ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
@@ -436,24 +436,23 @@ export default class Spaces extends View {
         const ctx = {
             fromIndex: this.pressed === null ? -1 : sp.findIndex(s => s.id === this.pressed),
             colors: snapshot.colors,
-            dark: snapshot.dark,
+            width: snapshot.width,
             appearance,
         };
         // One drawn row, with its sessions under it unless folded away.
         const add = (r) => {
             if (collapsed)
-                return [this.compact(r, t)];
+                return [this.compact(r, t, ctx)];
             const list = sessions.get(r.w.id) ?? [];
             const folded = this.sessionFolded.has(r.w.id);
             const fill = resolveColor(ctx.colors[r.w.id], t);
-            return [v_flex().id(`space-group-${r.w.id}`).flex_none().mb(8).overflow_hidden()
-                    .border_1().border_color((fill + (r.w.active ? "aa" : "55")))
-                    .border_l(3).bg((fill + (r.w.active ? "0c" : "05")))
+            return [v_flex().id(`space-group-${r.w.id}`).flex_none().mb(4).overflow_hidden()
+                    .border_1().border_color(tint(fill, t.chrome, r.w.active ? .60 : .22))
+                    .border_l(2).bg(tint(fill, t.chrome, r.w.active ? .08 : .025))
                     .when(Boolean(r.tree), el => el.ml(12))
                     .child(this.row(r, t, ctx, infos.get(r.w.id), list, folded))
-                    .when(!folded && list.length > 0, el => el.child(v_flex().py(3).gap(2)
-                    .border_t(1).border_color((fill + "33"))
-                    .children(list.map(s => this.sessionRow(r, s, t)))))];
+                    .when(!folded && list.length > 0, el => el.child(v_flex().pb(3)
+                    .children(list.map(s => this.sessionRow(r, s, t, fill)))))];
         };
         // Navigation follows what is on screen.
         const order = [];
@@ -470,12 +469,11 @@ export default class Spaces extends View {
         const loadingRow = (m) => h_flex().id(`machine-loading-${m ?? "local"}`).h(28).flex_none().px(collapsed ? 0 : 8).items_center().when(collapsed, el => el.justify_center()).text_size(12).text_color(t.dim).child(collapsed ? "…" : "Loading…");
         if (machineNames.length === 1)
             return loading(null) && !rows.length ? [loadingRow(null)] : rows.flatMap(add);
-        const machineColor = (m) => resolveColor(appearance.machines[machineKey(m)]?.color ?? appearance.defaults[machineKey(m)]?.color, t);
-        // The machine's color fills and frames a compact Critters panel.
-        // One machine (or the rail) still stays a plain list.
+        const colorFor = (m) => machineColor(appearance, m, t);
+        const compactHead = snapshot.width < 240;
         const card = (m, idx, children) => v_flex().id(`machine-card-${m ?? "local"}`).flex_none()
-            .when(idx > 0, el => el.mt(8))
-            .bg((machineColor(m) + "0d")).border(2).border_color((machineColor(m) + "55"))
+            .when(idx > 0, el => el.mt(12))
+            .bg(tint(colorFor(m), t.chrome, .035)).border_1().border_color(tint(colorFor(m), t.chrome, .40))
             .px(4).pb(4)
             .children(children);
         return machineNames.flatMap((m, idx) => {
@@ -486,15 +484,14 @@ export default class Spaces extends View {
             const rebuilt = this.rebuilt(machine) || !!repair;
             const login = machine?.state === "needs_login" ? `hc machine login ${m}` : null;
             const folded = this.folded.has(m);
-            const icon = pixelIcon(m ? "server" : "monitor", t.dim);
             const badge = div().absolute().right(-3).bottom(-2).size(6).border_1().border_color(t.chrome).bg(connected ? t.ansi2 : t.dim);
-            // A small static scene gives the same identity mascot more presence.
-            // Stars and ground are decoration, never a fabricated machine status.
             const key = machineKey(m);
-            const avatar = appearance.machines[key]?.avatar ?? { kind: "pixel", name: appearance.defaults[key].mascot };
-            const fill = machineColor(m);
-            const head = h_flex().id(`machine-${m ?? "local"}`).h(collapsed ? 26 : 58).flex_none().px(collapsed ? 0 : 8).gap(5).items_center().text_size(14).text_color(t.dim)
-                .when(!collapsed, el => el.my(4).bg((fill + "18")))
+            const avatar = machineAvatar(appearance, m), fill = colorFor(m);
+            const needs = all.filter(a => a.status === "blocked" && mine.some(r => r.w.id === a.space)).length;
+            // Match the right inset of a space row, including its 1 px group border.
+            const head = h_flex().id(`machine-${m ?? "local"}`).h(collapsed ? 36 : 52).flex_none()
+                .pl(collapsed ? 0 : 6).pr(collapsed ? 0 : ROW_INSET + 1).gap(8).items_center().text_size(14).text_color(t.dim)
+                .when(!collapsed, el => el.mb(4))
                 .when(collapsed, el => el.mt(4).w(RAIL_CELL).justify_center().tooltip(login ? `${m} needs a login: run ${login}. Click for Copy.` : m ? `${m} · ${connected ? "connected" : (machine?.state ?? "asleep").replace(/_/g, " ")}` : "This computer"))
                 .cursor_pointer().hover(s => s.bg(t.hover))
                 .on_click((_e, cx) => {
@@ -510,39 +507,36 @@ export default class Spaces extends View {
                 cx.stop_propagation();
                 openAppearance({ kind: "machine", machine: m });
             })
-                .when(!collapsed, el => el.child(div().relative().w(50).h(44).flex_none()
-                .bg(t.chrome).border_1().border_color((fill + "55"))
-                .when(!connected, el => el.opacity(0.5))
-                .child(div().absolute().left(0).right(0).bottom(0).h(9).bg((fill + "33")))
-                .child(div().absolute().left(5).top(7).size(2).bg((fill + "aa")))
-                .child(div().absolute().right(7).top(12).size(2).bg((fill + "77")))
-                .child(div().absolute().left(10).top(16).size(1).bg(t.muted))
-                .child(div().absolute().left(15).bottom(5).w(20).h(3).bg((fill + "44")))
-                .child(renderAvatar(avatar, 32, fill, m ?? "This computer").absolute().left(9).bottom(5))))
-                .when(collapsed, el => el.child(div().relative().flex_none().child(icon).when(Boolean(m), el => el.child(badge))))
+                .child(div().relative().flex_none().when(!connected, el => el.opacity(.5))
+                .child(renderAvatar(avatar, collapsed ? 24 : 32, fill, m ?? "This computer"))
+                .when(collapsed && Boolean(m), el => el.child(badge)))
                 .when(!collapsed, el => el.child(v_flex().flex_1().min_w(0).gap(3)
-                .child(div().truncate().text_size(18).text_color(connected ? t.foreground : t.muted)
-                .tooltip(m ?? "This computer").child((m ?? "This computer").toUpperCase()))
-                .child(div().truncate().text_size(13).text_color(t.muted)
-                .child(`${m ? "Remote" : "Local"} · ${mine.length} space${mine.length === 1 ? "" : "s"}`)))
-                .when(!connected && !rebuilt && !login, el => el.child(div().flex_none().child((machine?.state ?? "asleep").replace(/_/g, " "))))
-                .when(rebuilt, el => el.child(h_flex().flex_none().gap(3).items_center()
-                .child(div().max_w(140).truncate().child(repair?.error || "rebuilt ·"))
-                .child(div().id(`machine-connect-${m}`).text_color(repair?.error ? t.blocked : t.muted)
-                .hover(s => s.text_color(t.foreground))
-                .tooltip(repair?.error || "This machine was rebuilt or replaced. Click to connect to the new one.")
-                .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
-                .child(repair?.busy ? "Connecting…" : "Connect"))))
-                .child(div().id(`machine-appearance-${key}`).size(18).flex_none().flex().items_center().justify_center()
+                .child(div().truncate().text_size(16).font_semibold().text_color(connected ? t.foreground : t.muted)
+                .tooltip(m ?? "This computer").child(m ?? "This computer"))
+                .child(h_flex().gap(5).items_center().text_size(12).text_color(t.muted)
+                .child(div().size(5).flex_none().bg(connected ? t.ansi2 : t.dim)
+                .tooltip(connected ? "Connected" : (machine?.state ?? "offline").replace(/_/g, " ")))
+                .child(div().flex_1().min_w(0).truncate()
+                .child(connected ? `${compactHead ? "" : m ? "Remote · " : "Local · "}${mine.length} space${mine.length === 1 ? "" : "s"}`
+                : (machine?.state ?? "offline").replace(/_/g, " ")))
+                .when(needs > 0, el => el.child(div().text_color(t.blocked).tooltip(`${needs} agents need you`).child(`! ${needs}`)))))
+                .child(h_flex().flex_none().items_center()
+                .when(!compactHead, el => el.child(div().id(`machine-appearance-${key}`).size(24).flex_none().flex().items_center().justify_center()
                 .tooltip("Change machine color and avatar").cursor_pointer().hover(el => el.bg(t.hover).text_color(t.foreground))
                 .on_mouse_down("left", (_event, cx) => cx.stop_propagation())
                 .on_mouse_up("left", (_event, cx) => cx.stop_propagation())
                 .on_click((_event, cx) => { cx.stop_propagation(); openAppearance({ kind: "machine", machine: m }); })
-                .child(pixelIcon("settings", t.dim, 12)))
-                .when(connected, el => el.child(div().id(`machine-add-${m ?? "local"}`).flex_none().px(4).hover(s => s.bg(t.hover).text_color(t.foreground))
-                .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child("+")))
-                .child(div().size(6).flex_none().bg(connected ? t.ansi2 : t.dim))
-                .child(pixelIcon(folded ? "right" : "down", t.dim, 10)));
+                .child(pixelIcon("settings", t.dim, 12))))
+                .when(connected && !compactHead, el => el.child(div().id(`machine-add-${m ?? "local"}`).size(24).flex_none().flex().items_center().justify_center()
+                .tooltip(`New space on ${m ?? "this computer"}`).hover(s => s.bg(t.hover).text_color(t.foreground))
+                .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(pixelIcon("plus", t.muted, 12))))
+                .child(rowEnd().child(pixelIcon(folded ? "right" : "down", t.muted, 10)))));
+            const connect = rebuilt && !collapsed ? h_flex().px(8).pb(8).gap(6).items_center()
+                .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.muted).child(repair?.error || "Machine identity changed"))
+                .child(div().id(`machine-connect-${m}`).h(28).px(8).flex().items_center().text_color(t.foreground).bg(t.raised)
+                .tooltip(repair?.error || "Connect to the rebuilt machine")
+                .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
+                .child(repair?.busy ? "Connecting…" : "Connect")) : null;
             const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(28).flex_none().px(collapsed ? 0 : 8).gap(7).items_center()
                 .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
                 .on_click(() => run("space.new", { machine: m ?? "" }))
@@ -564,7 +558,7 @@ export default class Spaces extends View {
             if (collapsed)
                 return [cell(head), ...kids];
             if (rebuilt)
-                return [card(m, idx, [head])];
+                return [card(m, idx, [head, ...(connect ? [connect] : [])])];
             return [card(m, idx, [head, ...kids])];
         });
     }
@@ -578,13 +572,14 @@ export default class Spaces extends View {
         const repo = tree || same(g.name) ? "" : g.name;
         const where = [repo, branch].filter(Boolean).join(" · ");
         return h_flex()
-            .flex_1()
+            .max_w(110)
             .min_w(0)
             .gap(5)
             .justify_end()
             .items_center()
-            .text_size(11.5)
-            .text_color(t.dim)
+            .text_size(12)
+            .text_color(t.muted)
+            .tooltip([where, g.ahead ? `ahead ${g.ahead}` : "", g.behind ? `behind ${g.behind}` : ""].filter(Boolean).join(" · "))
             .when(Boolean(where), (el) => el.child(div().min_w(0).truncate().child(where)))
             .when(g.ahead > 0, (el) => el.child(div().flex_none().text_color(t.ansi2).child(`↑${g.ahead}`)))
             .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`↓${g.behind}`)));
@@ -594,13 +589,6 @@ export default class Spaces extends View {
         const fromIndex = ctx.fromIndex;
         const color = ctx.colors[w.id] ?? "ansi6";
         const fill = resolveColor(color, t);
-        // A soft tile: the hue at a fifth, a thin edge of the same, and the glyph
-        // in the hue on dark themes (foreground reads better on light ones).
-        const ink = ctx.dark ? fill : t.foreground;
-        const glyph = tree ? TREE_GLYPH : HOME_GLYPH[w.name] ?? null;
-        const tile = (child) => h_flex().size(22).flex_none()
-            .bg((fill + "2e")).border_1().border_color((fill + "33"))
-            .items_center().justify_center().child(child);
         // Expanded, its session rows carry the harnesses and status; folded or
         // without them, the space row says it itself.
         const showStatus = Boolean(w.status) && (folded || !sessions.length);
@@ -610,11 +598,11 @@ export default class Spaces extends View {
         return v_flex()
             .relative()
             .id(`space-${w.id}`)
-            .px(8)
+            .px(ROW_INSET)
             .h(rowHeight({ tree }))
             .flex_none()
             .justify_center()
-            .when(on, (el) => el.bg(t.selected))
+            .when(on, (el) => el.bg(tint(fill, t.chrome, .08)))
             .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
             .when(this.pressed === w.id && this.over !== w.id, (el) => el.opacity(0.5))
             .when(this.pressed !== null && this.over === w.id && this.pressed !== w.id, (el) => el.child(div().absolute().left(0).right(0).h(2).bg(t.accent)
@@ -646,32 +634,32 @@ export default class Spaces extends View {
                 run("space.select", { id: w.id });
             cx.notify();
         })
-            .on_mouse_down("right", () => this.menu(w, g, Boolean(tree)))
+            .on_mouse_down("right", () => this.menu(w, g, Boolean(ctx.appearance.spaceDefaults[w.id]?.worktree)))
             .child(h_flex()
-            .gap(9)
+            .gap(8)
             .items_center()
-            .child(tile(renderAvatar(ctx.appearance.spaces[w.id]?.avatar, 20, ink, w.name, () => glyph
-            ? svg(`mods/spaces-status/icons/${glyph}.svg`).size(12).text_color(ink)
-            : div().text_size(18).text_color(ink).child([...w.name][0]?.toUpperCase() ?? "?"))))
-            .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
-            .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
-            .when(showStatus, (el) => el.child(h_flex().flex_none().ml(6).gap(4).items_center()
-            .children(pics.map((p) => div().flex_none().tooltip(p.h.program.name).child(p.pic)))
-            .child(pixelStatus(t, w.status, info.label))))
-            .when(sessions.length > 0, (el) => el.child(div().id(`space-fold-${w.id}`).flex_none().ml(4).size(14).flex().items_center().justify_center()
-            .text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
-            .tooltip(folded ? "Show sessions" : "Hide sessions")
-            .on_mouse_down("left", (_e, cx) => {
-            cx.stop_propagation();
-            folded ? this.sessionFolded.delete(w.id) : this.sessionFolded.add(w.id);
-            localStorage.setItem("spaces.sessions.folded", JSON.stringify([...this.sessionFolded]));
-            cx.notify();
-        })
-            .child(pixelIcon(folded ? "right" : "down", t.dim, 10)))));
+            .child(renderAvatar(spaceAvatar(ctx.appearance, w.id), 20, fill, w.name))
+            .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).tooltip(w.name).child(w.name))
+            .when(Boolean(g) && ctx.width >= 340, el => el.child(this.gitTail(g, tree, w.name, t)))
+            .when(pics.length > 0, (el) => el.child(h_flex().flex_none().ml(6).gap(4).items_center()
+            .children(pics.map((p) => div().flex_none().tooltip(p.h.program.name).child(p.pic)))))
+            .when(showStatus && sessions.length > 0, el => el.child(rowEnd().child(pixelStatus(t, w.status, info.label))))
+            .child(sessions.length > 0
+            ? rowEnd().id(`space-fold-${w.id}`)
+                .text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
+                .tooltip(folded ? "Show sessions" : "Hide sessions")
+                .on_mouse_down("left", (_e, cx) => {
+                cx.stop_propagation();
+                folded ? this.sessionFolded.delete(w.id) : this.sessionFolded.add(w.id);
+                localStorage.setItem("spaces.sessions.folded", JSON.stringify([...this.sessionFolded]));
+                cx.notify();
+            })
+                .child(pixelIcon(folded ? "right" : "down", t.dim, 10))
+            : rowEnd().when(showStatus, el => el.child(pixelStatus(t, w.status, info.label)))));
     }
     // A tab with agents, under its space: its harnesses, name, sub-agent count,
     // and its own status. A worktree space's sessions sit one level deeper.
-    sessionRow({ w }, s, t) {
+    sessionRow({ w }, s, t, fill) {
         const harnesses = s.harnesses
             .map((h) => ({ h, pic: icon(h.program, 13, t.muted) }))
             .filter((p) => p.pic);
@@ -679,13 +667,13 @@ export default class Spaces extends View {
         const color = s.tab.settled ? t.dim : on ? t.foreground : t.muted;
         return h_flex()
             .id(`session-${s.tab.id}`)
-            .h(26)
+            .h(28)
             .flex_none()
-            .pl(12)
-            .pr(8)
+            .pl(16)
+            .pr(ROW_INSET)
             .gap(8)
             .items_center()
-            .when(on, (el) => el.bg(t.selected))
+            .when(on, (el) => el.bg(tint(fill, t.chrome, .20)))
             .when(!on, (el) => el.hover((hover) => hover.bg(t.hover)))
             .cursor_pointer()
             .on_click(() => {
@@ -693,27 +681,28 @@ export default class Spaces extends View {
             run("tab.select", { id: s.tab.id });
         })
             .tooltip(s.tip ? `${s.label} · ${s.tip}` : s.label)
-            .child(div().size(4).flex_none().bg(on ? t.accent : t.dim))
+            .child(div().w(2).h(12).flex_none().bg(on ? fill : tint(fill, t.chrome, .18)))
             .when(harnesses.length > 0, (el) => el.child(h_flex().flex_none().gap(3).items_center()
             .children(harnesses.map((p) => div().flex_none().tooltip(p.h.program.name).child(p.pic)))))
             .child(div().flex_1().min_w(0).truncate().text_color(color).child(s.label))
-            .when(s.subs > 0, (el) => el.child(div().flex_none().text_size(10).text_color(t.dim)
+            .when(s.subs > 0, (el) => el.child(div().flex_none().text_size(12).text_color(t.muted)
             .tooltip(`${s.subs} sub-agent${s.subs === 1 ? "" : "s"}`).child(`+${s.subs}`)))
-            .when(Boolean(s.status), (el) => el.child(pixelStatus(t, s.status, s.tip)));
+            .child(rowEnd().when(Boolean(s.status), el => el.child(pixelStatus(t, s.status, s.tip))));
     }
-    compact({ w, i }, t) {
+    compact({ w, i }, t, ctx) {
         return railCell(h_flex()
             .id(`space-${w.id}`)
             .relative()
             .w(RAIL_CELL)
-            .h(26)
+            .h(32)
             .justify_center()
             .items_center()
             .when(w.active, (el) => el.bg(t.selected))
             .when(!w.active, (el) => el.hover((s) => s.bg(t.hover)))
             .on_click(() => run("space.select", { id: w.id }))
-            .on_mouse_down("right", (_event, cx) => { cx.stop_propagation(); openAppearance({ kind: "space", id: w.id }); })
-            .child(div().text_color(w.active ? t.foreground : t.muted).child(String(i + 1)))
+            .on_mouse_down("right", (_event, cx) => { cx.stop_propagation(); openAppearance({ kind: "space", id: w.id, tree: ctx.appearance.spaceDefaults[w.id]?.worktree }); })
+            .tooltip(`${i + 1} · ${w.name}`)
+            .child(renderAvatar(spaceAvatar(ctx.appearance, w.id), 18, resolveColor(ctx.colors[w.id], t), w.name))
             .child(div().absolute().right(4)
             .size(w.status === "blocked" || w.status === "done" ? 5 : 3).bg(t[w.status] ?? t.unknown)));
     }
@@ -721,7 +710,7 @@ export default class Spaces extends View {
         if (this.overlay)
             return this.overlay.render();
         const t = theme();
-        const collapsed = narrow();
+        const width = sidebarWidth(), collapsed = width < 160, dark = settings().dark !== false;
         const sp = spaces(), ps = panes(), ms = machines(), all = agents();
         const allTerminals = terminals();
         const remoteNames = [...new Set([
@@ -730,16 +719,22 @@ export default class Spaces extends View {
             ])].sort();
         const machineNames = [null, ...remoteNames];
         const storedAppearance = shared(APPEARANCE_KEY);
-        const appearance = ensureMachineDefaults(readAppearance(storedAppearance), machineNames);
+        const facts = sp.map(s => ({ space: s, git: this.git[where(s, ps)] }));
+        const identities = facts.map(({ space, git }) => ({
+            id: space.id, machine: space.machine,
+            ...(git ? { worktree: git.linked, parent: git.linked
+                    ? facts.find(f => f.git?.repo === git.repo && !f.git.linked)?.space.id : undefined } : {}),
+        }));
+        const appearance = ensureSpaceDefaults(ensureMachineDefaults(readAppearance(storedAppearance), machineNames), identities);
         if (JSON.stringify(appearance) !== JSON.stringify(storedAppearance))
             setShared(APPEARANCE_KEY, appearance);
         const storedColors = shared("space.colors");
-        const colors = assignSpaceColors(sp, storedColors, appearance.spaces);
+        const colors = assignSpaceColors(sp, storedColors, appearance, t, dark);
         if (JSON.stringify(colors) !== JSON.stringify(storedColors ?? {}))
             setShared("space.colors", colors);
-        const snapshot = { sp, ps, ms, all, allTerminals, colors, appearance, machineNames, dark: settings().dark !== false };
+        const snapshot = { sp, ps, ms, all, allTerminals, colors, appearance, machineNames, dark, width };
         return v_flex().size_full().min_h(0).bg(t.chrome).font_family(UI_FONT).text_size(UI_FONT_SIZE)
-            .child(h_flex().h(31).pl(12).pr(10).items_center().justify_between().text_size(14).text_color(t.dim)
+            .child(h_flex().h(32).pl(12).pr(10).items_center().justify_between().text_size(12).text_color(t.muted)
             .when(collapsed, el => el.pl(0).pr(0).justify_center())
             .when(!collapsed, el => el.child("SPACES"))
             .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().hover(s => s.bg(t.hover).text_color(t.foreground))

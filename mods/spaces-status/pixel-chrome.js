@@ -1,6 +1,6 @@
 // Owned pixel chrome, adapted from Herdr 0.1.15's Apache-2.0 workspace mods.
 // Keep behavior (wheel/drag, per-space panels, traffic lights, pane targets).
-import { div, image } from "gpui-kit";
+import { div } from "gpui-kit";
 import { h_flex, v_flex, ScrollHandle } from "gpui-base";
 import { agents, home, keys, layout, openOverlay, panes, props, run, settings, theme, setShared, shared, spaces, updates, window, } from "herdr";
 import { UI_FONT, UI_FONT_SIZE, record } from "./appearance-model.js";
@@ -157,7 +157,7 @@ class PixelTabs {
                 }
             }).child(pixelIcon(glyph, on ? t.foreground : t.muted)).child(label);
         };
-        return rootBar(t).px(10).pl(lightsPadding).gap(6).border_b(2).border_color(t.border)
+        return rootBar(t).px(10).pl(lightsPadding).gap(6).border_b(1).border_color(t.border)
             .on_mouse_up("left", () => { this.pressed = null; })
             .on_scroll_wheel(event => this.wheel(event))
             .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(4)
@@ -195,7 +195,7 @@ class PixelTabs {
                 openOverlay({ mod: "spaces-status", kind: "popup", width: 230, props: { chromeMenu: { id: tab.id, space: space?.id } } });
             })
                 .children(pic ? [pic] : [])
-                .child(div().max_w(190).truncate().child(`${tabLabel(tab, lead)}${tab.zoomed ? " [Z]" : ""}`))
+                .child(div().max_w(240).truncate().tooltip(tabLabel(tab, lead)).child(`${tabLabel(tab, lead)}${tab.zoomed ? " [Z]" : ""}`))
                 .children(status ? [status] : [])
                 .when(tab.active, el => el.child(pixelButton(t, `close-${tab.id}`, "close", "Close tab", () => run("tab.close", { id: tab.id })).size(18)));
         })))
@@ -231,7 +231,7 @@ class PixelPane {
             .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(folder))
             .children(status ? [status] : [])
             .when(p.status === "blocked", el => el.child(div().text_color(t.blocked).child("NEEDS YOU")))
-            .when(this.hovered, el => el
+            .child(h_flex().flex_none().gap(4).when(!this.hovered, el => el.invisible())
             .child(pixelButton(t, `ph-r-${pane}`, "split", "Split right", () => run("pane.split", { direction: "right", pane })))
             .child(pixelButton(t, `ph-d-${pane}`, "splitDown", "Split down", () => run("pane.split", { direction: "down", pane })))
             .child(pixelButton(t, `ph-z-${pane}`, "zoom", p.zoomed ? "Unzoom pane" : "Zoom pane", () => run("pane.zoom", { pane })))
@@ -255,16 +255,15 @@ class PixelBars {
                 .on_click(action).child(pixelIcon(glyph, t.muted)).when(!collapsed, el => el.child(label));
             const ready = div().size(6).bg(t.accent);
             return v_flex().size_full().bg(t.chrome).font_family(UI_FONT).text_size(UI_FONT_SIZE)
-                .border_t(2).border_color(t.border).px(8).pt(4).pb(8).when(collapsed, el => el.px(0).items_center())
-                .child(row("settings", "settings", "SETTINGS", () => run("app.settings"))
+                .border_t(1).border_color(t.border).px(8).pt(4).pb(8).when(collapsed, el => el.px(0).items_center())
+                .child(row("settings", "settings", "Settings", () => run("app.settings"))
                 .when(Boolean(updates().app.ready), el => el.child(collapsed ? ready.absolute().top(5).right(6) : ready)))
-                .child(row("machine", "plus", "ADD MACHINE", () => run("mod.open", { name: "machine-add" })));
+                .child(row("machine", "plus", "Add machine", () => run("mod.open", { name: "machine-add" })));
         }
-        return rootBar(t).pl(collapsed ? 6 : 12).pr(10).gap(6).border_b(2).border_color(t.border)
+        return rootBar(t).pl(collapsed ? 6 : 12).pr(10).gap(6).border_b(1).border_color(t.border)
             .when(w?.platform === "macos" && !w.fullscreen && !collapsed, el => el.pl(76))
             .when(!collapsed, el => el.child(h_flex().flex_1().gap(8).items_center()
-            .child(image("mods/spaces-status/icons/machines/cat.svg").size(28))
-            .child(div().text_size(22).text_color(t.foreground).child("HERDR"))))
+            .child(div().text_size(16).font_semibold().text_color(t.foreground).child("HERDR"))))
             .when(!collapsed, el => el.child(pixelButton(t, "search", "search", "Find a space or terminal", () => run("mod.open", { name: "picker" }))))
             .when(!(collapsed && w?.platform === "macos"), el => el.child(pixelButton(t, "sidebar-toggle", "sidebar", collapsed ? "Expand sidebar" : "Collapse sidebar", () => {
             if (!collapsed)
@@ -283,7 +282,7 @@ class PixelBars {
         const parts = binding?.keys.endsWith("--") ? [...binding.keys.slice(0, -2).split("-"), "-"] : binding?.keys.split("-");
         const hint = parts?.map(p => aliases[p.toLowerCase()] ?? p.toUpperCase()).join("");
         const label = (glyph, text) => h_flex().gap(6).items_center().child(pixelIcon(glyph, t.muted)).child(text);
-        return rootBar(t).px(14).gap(16).border_t(2).border_color(t.border).text_size(14)
+        return rootBar(t).px(14).gap(16).border_t(1).border_color(t.border).text_size(14)
             .child(label(space?.machine ? "server" : "monitor", space?.machine ?? "This computer"))
             .when(Boolean(space?.branch), el => el.child(label("branch", space?.branch ?? "")))
             .child(h_flex().gap(6).items_center().child(div().size(6).bg(t.dim)).child(`${list.length} agents`)

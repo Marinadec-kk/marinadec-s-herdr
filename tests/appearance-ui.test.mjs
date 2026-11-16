@@ -2,7 +2,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
-import { APPEARANCE_KEY, ensureMachineDefaults, readAppearance } from "../mods/spaces-status/appearance-model.js";
+import { APPEARANCE_KEY, ensureMachineDefaults, ensureSpaceDefaults, readAppearance } from "../mods/spaces-status/appearance-model.js";
 
 function element(kind) {
   const node = { kind, kids: [], props: {}, events: {} };
@@ -36,11 +36,11 @@ function environment() {
       { id: "s3", name: "Other", named: true, machine: "small", folder: "/other", tabs: [], active: false, status: null },
     ],
   };
-  env.values.set(APPEARANCE_KEY, ensureMachineDefaults(readAppearance(null), [null, "pi", "small"]));
+  env.values.set(APPEARANCE_KEY, ensureSpaceDefaults(ensureMachineDefaults(readAppearance(null), [null, "pi", "small"]), env.spaces));
   env.values.set("space.colors", { s1: "ansi6", s2: "ansi3", s3: "ansi4" });
   env.cx = {
     notify: () => { env.notifications++; }, stop_propagation() {},
-    focus_handle: () => ({ focus() {} }),
+    focus_handle: () => { let focused = false; return { focus() { focused = true; }, is_focused() { return focused; } }; },
     spawn: () => { env.spawns++; },
     timer: { every: () => { env.timers++; }, after: () => { env.timers++; } },
   };
@@ -125,58 +125,74 @@ const editor = target => createAppearanceOverlay({ appearance: target, overlay: 
 test("machine editor has both color and avatar controls and starts no sidebar pollers", () => {
   const ui = editor({ kind: "machine", machine: "pi" });
   click(ui, "color-4");
-  click(ui, "avatar-pixel-ghost");
+  click(ui, "avatar-plush-ss14-moth-icon");
   click(ui, "appearance-save");
-  assert.deepEqual(env.values.get(APPEARANCE_KEY).machines["remote:pi"], { color: "ansi2", avatar: { kind: "pixel", name: "ghost" } });
+  assert.deepEqual(env.values.get(APPEARANCE_KEY).machines["remote:pi"], { color: "#3fae6a", avatar: { kind: "plush", id: "ss14-moth-icon" } });
   assert.deepEqual(env.closed, ["editor"]);
   assert.equal(env.timers, 0);
   assert.equal(env.spawns, 0);
 });
 
-test("space rename, explicit color and a Material icon save against the clicked id", () => {
+test("space rename and Sharp icon save against the clicked id without color controls", () => {
   const ui = editor({ kind: "space", id: "s1" });
   env.inputs[0].set_value("Renamed demo");
   env.inputs[2].set_value("rocket");
-  click(ui, "color-2");
+  assert.equal(find(ui.render(), "tone-2"), undefined);
   click(ui, "material-rocket");
   click(ui, "appearance-save");
   assert.deepEqual(env.commands, [["space.rename", { id: "s1", name: "Renamed demo" }]]);
-  assert.deepEqual(env.values.get(APPEARANCE_KEY).spaces.s1, { color: "ansi4", avatar: { kind: "material", family: "round", name: "rocket" } });
+  assert.deepEqual(env.values.get(APPEARANCE_KEY).spaces.s1, { avatar: { kind: "material", family: "sharp", name: "rocket" } });
 });
 
 test("cancel discards drafts without host writes or a rename", () => {
   const ui = editor({ kind: "space", id: "s1" });
   env.inputs[0].set_value("Not saved");
-  click(ui, "color-3");
-  click(ui, "avatar-pixel-cat");
+  env.inputs[2].set_value("home");
+  click(ui, "material-home");
   click(ui, "appearance-cancel");
   assert.deepEqual(env.writes, []);
   assert.deepEqual(env.commands, []);
 });
 
-test("reset releases a pinned space color without removing unrelated preferences", () => {
+test("reset restores the saved icon without changing assigned shades or unrelated profiles", () => {
   const state = env.values.get(APPEARANCE_KEY);
-  state.spaces = { s1: { color: "#abcdef", avatar: { kind: "letter" } }, s2: { color: "#123456" } };
+  state.spaces = { s1: { avatar: { kind: "material", family: "sharp", name: "home" } },
+    s2: { avatar: { kind: "material", family: "sharp", name: "rocket" } } };
+  const defaults = structuredClone(state.spaceDefaults);
   const ui = editor({ kind: "space", id: "s1" });
   click(ui, "appearance-reset");
   click(ui, "appearance-save");
   assert.equal(env.values.get(APPEARANCE_KEY).spaces.s1, undefined);
-  assert.equal(env.values.get(APPEARANCE_KEY).spaces.s2.color, "#123456");
-  assert.equal(env.values.get("space.colors").s1, undefined);
+  assert.equal(env.values.get(APPEARANCE_KEY).spaces.s2.avatar.name, "rocket");
+  assert.deepEqual(env.values.get(APPEARANCE_KEY).spaceDefaults, defaults);
+  assert.equal(env.values.get("space.colors").s1, "ansi6");
   assert.equal(env.values.get("space.colors").s2, "ansi3");
   assert.deepEqual(env.commands, []);
 });
 
 test("invalid hex and a closed space do not save", () => {
-  const ui = editor({ kind: "space", id: "s1" });
+  const machine = editor({ kind: "machine", machine: "pi" });
   env.inputs[1].set_value("#oops");
-  click(ui, "appearance-save");
+  click(machine, "appearance-save");
   assert.deepEqual(env.writes, []);
   assert.deepEqual(env.closed, []);
-  env.inputs[1].set_value("#123456");
+  const ui = editor({ kind: "space", id: "s1" });
   env.spaces = [];
   click(ui, "appearance-save");
   assert.deepEqual(env.writes, []);
+});
+
+test("worktree editor allows renaming but offers no icon or shade selector", () => {
+  const state = env.values.get(APPEARANCE_KEY);
+  state.spaceDefaults.s1 = { ...state.spaceDefaults.s1, worktree: true, parent: "s2" };
+  const ui = editor({ kind: "space", id: "s1", tree: true });
+  assert.equal(find(ui.render(), "avatar-gallery"), undefined);
+  assert.equal(find(ui.render(), "avatar-auto"), undefined);
+  assert.equal(find(ui.render(), "tone-0"), undefined);
+  env.inputs[0].set_value("Feature branch");
+  click(ui, "appearance-save");
+  assert.deepEqual(env.commands, [["space.rename", { id: "s1", name: "Feature branch" }]]);
+  assert.equal(env.values.get(APPEARANCE_KEY).spaceDefaults.s1.parent, "s2");
 });
 
 test("rename remains in the space menu and worktree actions retain the same target", () => {
@@ -207,11 +223,11 @@ test("SS14 avatar saves, reopens and Default avatar preserves its manual color",
   click(ui, "avatar-plush-ss14-shark-blue");
   click(ui, "appearance-save");
   assert.deepEqual(env.values.get(APPEARANCE_KEY).machines["remote:pi"],
-    { color: "ansi4", avatar: { kind: "plush", id: "ss14-shark-blue" } });
+    { color: "#5b8def", avatar: { kind: "plush", id: "ss14-shark-blue" } });
   ui = editor(target);
   click(ui, "avatar-auto");
   click(ui, "appearance-save");
-  assert.deepEqual(env.values.get(APPEARANCE_KEY).machines["remote:pi"], { color: "ansi4" });
+  assert.deepEqual(env.values.get(APPEARANCE_KEY).machines["remote:pi"], { color: "#5b8def" });
 });
 
 test("plush sprite sheet is clipped to the first frame, not squeezed into the tile", () => {
@@ -304,13 +320,29 @@ test("pixel space groups wrap their own sessions and keep fold/navigation behavi
   view.init({}, env.cx);
   const tree = view.render(), group = find(tree, "space-group-s1");
   assert.ok(group);
-  assert.equal(group.props.border_l, 3);
   assert.ok(find(group, "space-s1"));
   assert.ok(find(group, "session-t1"));
   click(view, "session-t1");
   assert.deepEqual(env.commands.slice(-2), [["space.select", { id: "s1" }], ["tab.select", { id: "t1" }]]);
   find(view.render(), "space-fold-s1").events["on_mouse_down:left"]({}, env.cx);
   assert.equal(find(view.render(), "session-t1"), undefined);
+});
+
+test("editors separate characters and icons, and keyboard selection saves the focused choice", () => {
+  const machine = editor({ kind: "machine", machine: "pi" });
+  assert.ok(find(machine.render(), "avatar-plush-ss14-shark-blue"));
+  assert.equal(find(machine.render(), "family-sharp"), undefined);
+  assert.equal(find(machine.render(), "color-auto"), undefined);
+  const ui = editor({ kind: "space", id: "s1" });
+  assert.equal(find(ui.render(), "avatar-plush-ss14-shark-blue"), undefined);
+  assert.equal(find(ui.render(), "color-auto"), undefined);
+  const choices = find(ui.render(), "avatar-gallery").kids;
+  const expected = choices[1].props.id.replace("material-", "");
+  const gallery = find(ui.render(), "avatar-gallery");
+  gallery.events.on_key_down({ key: "right" }, env.cx);
+  gallery.events.on_key_down({ key: "enter" }, env.cx);
+  click(ui, "appearance-save");
+  assert.equal(env.values.get(APPEARANCE_KEY).spaces.s1.avatar.name, expected);
 });
 
 test("automatic tab labels do not mistake a path for an agent title", () => {
@@ -320,14 +352,14 @@ test("automatic tab labels do not mistake a path for an agent title", () => {
   assert.equal(tabLabel(tab, { ...pane, title: "Fixing tests" }), "Fixing tests");
 });
 
-test("changing Material style applies to the selected icon, not just the browser", () => {
+test("legacy Material choices reopen in Sharp without offering style variants", () => {
+  env.values.get(APPEARANCE_KEY).spaces.s1 = { avatar: { kind: "material", family: "outlined", name: "home" } };
   const ui = editor({ kind: "space", id: "s1" });
-  env.inputs[2].set_value("home");
-  click(ui, "material-home");
-  click(ui, "family-outlined");
+  assert.equal(find(ui.render(), "family-outlined"), undefined);
+  assert.equal(find(ui.render(), "family-round"), undefined);
   click(ui, "appearance-save");
   assert.deepEqual(env.values.get(APPEARANCE_KEY).spaces.s1.avatar,
-    { kind: "material", family: "outlined", name: "home" });
+    { kind: "material", family: "sharp", name: "home" });
 });
 
 test("new pixel menu restores installed agents from cache and preserves launch argv", () => {

@@ -1,18 +1,18 @@
 # Marinadec's Herdr
 
-A pixel-art workspace for the [Herdr](https://herdr.dev) desktop app. Every agent tab appears under its space with its harness, live status and sub-agent count. Worktrees nest under their checkout; machines and spaces have editable colors and avatars.
+A pixel-art workspace for the [Herdr](https://herdr.dev) desktop app. Every agent tab appears under its space with its harness, live status and sub-agent count. Machines have editable colors and characters; ordinary spaces use Sharp icons and automatic shades. Worktrees nest under their checkout and inherit its color.
 
 - **Liberation typography.** Liberation Mono 14 for terminals and Liberation Sans with a 14 px base size for the interface. Both families are bundled, including regular, bold, italic and bold italic faces with Cyrillic support. Headings, hints and avatar glyphs keep their contextual sizes.
 - **Pixel chrome.** Square controls, bitmap glyphs and sharp pane frames across the sidebar, tabs, pane headers, brand/footer and status bar. Fonts are configured by this layout and its mod.
-- **Clear space groups.** Each space and its sessions share one frame and a 3 px colored edge, with 8 px between groups. Worktrees indent as a group.
+- **Clear hierarchy.** Machines have quiet 1 px frames and 12 px separation. Their spaces share a tonal family, with 2 px edges and 4 px separation. Sessions sit inside their space; the active session gets the strongest fill.
 
 - **Inline sessions.** A tab gets a row only if it runs Claude Code, OpenCode, Pi or another agent. The row shows the harness icon, the tab's name, `+N` for sub-agents and the tab's own status.
 - **One status per level.** Expanded, a space leaves status to its session rows. Fold it with the chevron at the right edge, and the space row summarizes its harnesses and the most urgent status.
-- **Worktrees nest.** A worktree space appears under the repo it belongs to, with a tree avatar; its sessions indent one level deeper.
-- **Editable avatars.** Each space starts with a letter tile (`~` gets a house, worktrees a tree). Rename it and choose its color/avatar in one dialog. Machines have the same choices: letter, four original critters, **32 SS14 plushies**, or the complete Material Icons catalog.
-- **Machines.** When a remote machine is known, each machine gets a color-framed card; the local card is “THIS COMPUTER”. The current Critters visual trial tints the whole card and puts a small pixel scene beside a bold machine name, with a local/remote label and space count below it. Offline machines keep their card too. With only this computer, there is no machine header or card.
-- **Compact rail.** Narrow the sidebar under 160 px and it becomes a rail of status dots; session rows are hidden.
-- **Everything the spaces list already does.** Click to switch, right-click for the usual space menu, drag to reorder, branch and ahead/behind tails, per-machine groups.
+- **Worktrees nest.** Worktrees and their sessions indent under their checkout. Every detected worktree has a fixed Git-tree icon and inherits its parent's color; it consumes no separate shade slot.
+- **Separate identities.** Machines use one of 32 characters; ordinary spaces use Material Icons **Sharp only**. Initial icons are randomly selected from unused choices where possible, then saved by ID. Names and project contents do not choose an icon.
+- **Machines.** With a known remote, each machine gets a tinted card, 32 px character, 16 px name and connection/space count. A blocked-agent count remains visible when the group is folded. Offline machines retain their cards. With only this computer, there is no machine header/card.
+- **Compact rail.** Below 240 px the header simplifies; below 160 px the sidebar becomes a rail of characters, Sharp icons and status dots.
+- **Navigation.** Click to switch, right-click for the space menu, drag to reorder. Branch/ahead/behind tails appear at sidebar widths of 340 px and above.
 
 ## Install
 
@@ -106,24 +106,25 @@ For pixel chrome too, use the supplied layout: it places this same mod with `pro
 - Click a space to switch; click a session row to open that tab.
 - The chevron at the right edge of a space folds its sessions. Fold state is per mod copy, kept in `localStorage` under `spaces.sessions.folded`.
 - Drag a space row to reorder it inside its machine; right-click for the usual space menu (rename, worktrees, close).
-- Click a machine header to fold its spaces. Login guidance and its Copy button remain visible when folded; a rebuilt machine shows a Connect action in its header.
-- **Space name, color and avatar:** right-click its row → **Rename & appearance…**. Worktree and close actions remain in that menu. Right-click a rail space to open its editor directly.
+- Click a machine header to fold its spaces. Login guidance and Copy stay visible when folded; a rebuilt machine shows Connect below its header.
+- **Space name and icon:** right-click → **Rename & appearance…**. Worktrees have a fixed icon and offer renaming only. Right-click a rail space to open its editor.
 - **Machine color and avatar:** use the small settings button in its header, or right-click the header (also in the rail).
-- Choose a preset color or enter `#rrggbb`; browse **2276 Material icon names** with search, categories and five styles. A preview is local to the dialog until **Save**. **Cancel** discards the draft; **Reset appearance** restores automatic color/avatar without changing the name.
-- **Default avatar** changes only the avatar: the machine's assigned critter, or a space's letter/home/tree. It does **not** reset the color. Material style buttons show a sample and explanation; changing style also updates a selected Material icon when available.
-- **SS14 plushies** are a separate gallery in the same editor. Hover for the sprite name/license; attribution and unchanged source metadata are bundled in `icons/plushies/`. Sprite sheets display only their first frame, without animation.
+- Machines offer **24 named base colors**, a custom `#rrggbb` field and a searchable character gallery. Spaces get one of **12 inherited shades**, using unoccupied slots first; there are no manual shade controls or shade-strip previews.
+- Spaces offer the full available **Material Sharp** catalog with search and categories. No style selector. Worktrees always use `account_tree`.
+- Avatar **Auto** returns to the saved random icon without rerolling. **Reset** restores saved defaults; **Cancel** discards drafts. Preview and Save/Cancel stay outside scrolling. Down from search enters the gallery; arrows navigate, Enter selects, Ctrl/Cmd+Enter saves.
+- Character labels use friendly names. Original IDs, sources, attribution and licenses remain bundled in `icons/plushies/`. Sprite sheets show their first frame, without animation.
 - `agent.next` / `agent.prev` follow the session rows in list order: the mod calls `setAgentOrder` on render.
 - Dragging the sidebar below 160 px switches to the compact rail.
 
 ## Customize
 
-- **Colors:** use the appearance editor; a manual choice is never rebalanced away. `PROJECT_COLORS` and `MARK` in `mods/spaces-status/appearance-model.ts` define the automatic palette; rebuild after editing it. Space colors are also published to Herdr's shared `space.colors`, so the shipped picker uses the same color.
+- **Colors:** `PROJECT_COLORS`/`COLOR_NAMES` define 24 machine colors. `appearance-colors.ts` derives 12 OKLCH shades with light/dark variants and gamut mapping. Ordinary spaces use free slots first; changing the machine color updates the family. Concrete hex colors are shared with the shipped picker through `space.colors`.
 - **Sidebar width:** the layout starts at 299 px; drag the divider or edit the `sidebar` size in `layouts/main-status.json`. Below 160 px the rail takes over.
 - **Theme:** the layout pins `{ "light": "paper", "dark": "ink" }`; change the root `theme` or use the theme picker.
 - **Fonts:** the layout sets `font: "Liberation Mono"`, `font_size: 14` and `ui_font: "Liberation Sans"`. The mod's `UI_FONT` and `UI_FONT_SIZE` in `appearance-model.ts` set its base UI typography to Liberation Sans 14; rebuild after changing them.
-- **Saved appearance:** choices live locally in shared `spaces-status.appearance`, keyed by space id or machine identity (`local` / `remote:<name>`), not by row position or space name. Space renaming does not change its avatar. Renaming a machine connection itself changes its key.
-- **Machine defaults (visual trial 2):** a saved allocator gives machines different colors/mascots while unused slots remain (ten colors, four mascots). Existing assignments survive reordering and restart. Explicit choices may intentionally repeat. Pixel mascots are static identity/decor, not status; the rail keeps its monitor/server icons.
-- **Material Icons:** all five font families and a searchable index are bundled locally; no icon downloads occur while browsing or rendering. Some names are available only in particular styles. Custom avatars currently affect this sidebar, not the shipped tab bar or picker icons.
+- **Saved appearance:** schema v2 in `spaces-status.appearance` stores profiles and defaults by space ID or machine identity (`local` / `remote:<name>`). Migration retains character choices, compatible Material names and machine colors; old Material styles become Sharp, old space color overrides give way to inherited colors. Worktree icons are locked.
+- **Allocation:** random characters are reserved across machines, random icons within each machine. Shade slots are allocated from unused slots first. Existing/offline identities retain their defaults; exhausted pools reuse least-used candidates. Renaming a connection changes its identity key.
+- **Assets:** the source Material catalog/fonts remain bundled, but the UI uses Sharp exclusively. No runtime downloads. Sidebar avatar choices do not replace shipped picker icons.
 
 ## Build
 

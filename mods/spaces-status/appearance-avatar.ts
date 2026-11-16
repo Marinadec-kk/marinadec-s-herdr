@@ -1,6 +1,6 @@
 import { div, image } from "gpui-kit";
 import type { Color, Element } from "gpui-kit";
-import { MATERIAL_FAMILIES, UI_FONT } from "./appearance-model.js";
+import { MATERIAL_FONT, SHARP_INDEX } from "./appearance-model.js";
 import type { AvatarChoice } from "./appearance-model.js";
 import { MATERIAL_ICONS } from "./material-catalog.js";
 import { PLUSHIES } from "./plush-catalog.js";
@@ -11,7 +11,7 @@ export function renderAvatar(
   choice: AvatarChoice | undefined,
   size: number,
   color: Color,
-  name: string,
+  _name: string,
   fallback?: () => Element,
 ): Element {
   if (!choice && fallback) return fallback();
@@ -21,13 +21,10 @@ export function renderAvatar(
       .child(image(`mods/spaces-status/icons/plushies/${plush.id}.png`).absolute().left(0).top(0)
         .w(size * plush.width / plush.frameWidth).h(size * plush.height / plush.frameHeight));
   }
-  if (choice?.kind === "pixel") return image(`mods/spaces-status/icons/machines/${choice.name}.svg`).w(size).h(size).flex_none();
   if (choice?.kind === "material") {
-    const family = MATERIAL_FAMILIES.findIndex(f => f.id === choice.family);
-    const code = icons.get(choice.name)?.codes[family];
+    const code = icons.get(choice.name)?.codes[SHARP_INDEX];
     if (code != null) return div().size(size).flex_none().flex().items_center().justify_center()
-      .font_family(MATERIAL_FAMILIES[family].font).text_size(size).text_color(color).child(String.fromCodePoint(code));
+      .font_family(MATERIAL_FONT).text_size(size).text_color(color).child(String.fromCodePoint(code));
   }
-  return div().size(size).flex_none().flex().items_center().justify_center()
-    .font_family(UI_FONT).text_size(size * 0.9).font_bold().text_color(color).child([...name][0]?.toUpperCase() ?? "?");
+  return div().size(size).flex_none();
 }

@@ -21,7 +21,7 @@
             "props": { "chrome": "brand" }
           },
           "size": {
-            "px": 46
+            "px": 42
           },
           "window_drag": true
         },
@@ -95,7 +95,7 @@
                   },
                   "background": "background",
                   "border": {
-                    "width": 2,
+                    "width": 1,
                     "color": "border"
                   },
                   "focus": {
