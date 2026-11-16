@@ -109,6 +109,7 @@ For pixel chrome too, use the supplied layout: it places this same mod with `pro
 - The chevron at the right edge of a space folds its sessions. Fold state is per mod copy, kept in `localStorage` under `spaces.sessions.folded`.
 - Drag a space row to reorder it inside its machine; right-click for the usual space menu (rename, worktrees, close).
 - Click a machine header to fold its spaces. Login guidance and Copy stay visible when folded; a rebuilt machine shows Connect below its header.
+- The sidebar `+` starts in the current machine's home in both modes, rather than inheriting the active project's folder. A machine header's `+` explicitly targets that machine.
 - The Git-branch button beside a space opens **New worktree** directly for that space, including remote spaces, without selecting it. The dialog checks its live folder and explains when it is outside Git.
 - Machine, space and worktree actions use 28, 24 and 20 px targets; titles use 16, 14 and 12 px. All three tiers occupy the same two centered action columns, so `+`/worktree and fold controls align. Worktrees do not shrink further with depth.
 - A new branch starts at the clicked checkout's current commit, recorded with its source space, branch and path. The sidebar preserves this ancestry across restart and reopening a checkout. Checking out an existing branch does not invent a source relationship.

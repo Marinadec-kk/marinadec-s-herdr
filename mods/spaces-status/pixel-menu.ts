@@ -8,7 +8,7 @@ import { pixelIcon, programIcon } from "./pixel-ui.js";
 import type { PixelGlyph } from "./pixel-ui.js";
 import type { ChromeView } from "./pixel-chrome.js";
 import { Menu } from "./ui/menu.js";
-import { openWorktree, openTabRename, closeTab, overlayProps } from "./overlays.js";
+import { openWorktree, openTabRename, closeTab, overlayProps, newSpaceInHome } from "./overlays.js";
 
 type KnownAgent = Awaited<ReturnType<typeof knownAgents>>[number];
 interface MenuItem { id: string; label: string; glyph: PixelGlyph; action: () => void; hint?: string; enabled?: boolean; agent?: KnownAgent }
@@ -69,7 +69,7 @@ class PixelMenu implements ChromeView {
         action: () => { if (space) run("tab.new", { space: space.id, argv: agent.run }); },
         enabled: agent.installed && Boolean(space), hint: agent.installed ? (index < 9 ? String(index + 1) : "") : "not installed",
       })),
-      { id: "space", label: "New space", glyph: "plus", action: () => run("space.new"), hint: shortcut("space.new") },
+      { id: "space", label: "New space", glyph: "plus", action: () => newSpaceInHome(space?.machine ?? null), hint: shortcut("space.new") },
       { id: "worktree", label: "New worktree…", glyph: "branch", action: () => worktree("new"), enabled: Boolean(space) },
       { id: "worktree-open", label: "Open worktree…", glyph: "branch", action: () => worktree("open"), enabled: Boolean(space) },
     ];

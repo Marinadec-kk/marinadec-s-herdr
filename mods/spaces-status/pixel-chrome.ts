@@ -17,7 +17,7 @@ import { surface } from "./ui/surfaces.js";
 import { UI, menuHeight } from "./ui/tokens.js";
 import { machineLabel, shortPath, tabLabel } from "./presentation/labels.js";
 import { statusCounts } from "./presentation/status.js";
-import { openSurface, openPicker, openTabRename, closeTab, openMachineAdd } from "./overlays.js";
+import { openSurface, openPicker, openTabRename, closeTab, openMachineAdd, newSpaceInHome } from "./overlays.js";
 export { tabLabel } from "./presentation/labels.js";
 
 export interface LayoutNode {
@@ -257,7 +257,7 @@ class PixelBars implements ChromeView {
       .when(w?.platform === "macos" && !w.fullscreen && !collapsed, el => el.pl(76))
       .when(!collapsed, el => el.child(h_flex().flex_1().gap(8).items_center()
         .child(div().text_size(16).font_semibold().text_color(t.foreground).child("HERDR"))))
-      .when(!collapsed, el => el.child(pixelButton(t, "space-new", "plus", "New space", () => run("space.new")))
+      .when(!collapsed, el => el.child(pixelButton(t, "space-new", "plus", "New space in current machine’s home", () => newSpaceInHome()))
         .child(pixelButton(t, "search", "search", "Find a space or terminal", openPicker)))
       .when(!(collapsed && w?.platform === "macos"), el => el.child(pixelButton(t, "sidebar-toggle", "sidebar", collapsed ? "Expand sidebar" : "Collapse sidebar", () => {
         if (!collapsed) setShared("sidebar.width", width);

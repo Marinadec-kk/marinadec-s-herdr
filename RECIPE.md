@@ -55,7 +55,7 @@ Pixel status marks retain their semantics: native rotating pair for working, `!`
 
 Tabs retain wheel/drag, active-tab scrolling, menus, new-agent launch, and per-space Files/Changes memory. Pane actions use explicit pane IDs. Window controls retain platform-specific behavior.
 
-Machine `+` creates a space in that machine's home, without a folder picker. A space's Git button opens New worktree immediately for its ID and machine; the controller resolves that space's live folder, including remotely. New/Open/Remove share one overlay route and dimensions. Removal retains dirty/submodule checks and requires renewed consent if risk changes after opening.
+Machine `+` creates a space in that machine's home, without a folder picker. The global sidebar `+`, in either mode, resolves the active machine on click and explicitly targets its home rather than inheriting the focused checkout; the New menu retains its captured machine. These actions share `newSpaceInHome`. A space's Git button opens New worktree immediately for its ID and machine; the controller resolves that space's live folder, including remotely. New/Open/Remove share one overlay route and dimensions. Removal retains dirty/submodule checks and requires renewed consent if risk changes after opening.
 
 Explicit tab names always win; otherwise sidebar, tabs and search use the same agent-title policy. New-agent launch passes argv without assigning the program name as a manual tab name. Search includes titles, program names, folders and machines, with attention-first groups, quiet folding and Ctrl+D close. Terminal menus use the clicked pane/terminal and omit pane actions for composition terminals. Toasts retain action and login-command Copy behavior.
 

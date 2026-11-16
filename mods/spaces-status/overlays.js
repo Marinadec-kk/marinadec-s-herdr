@@ -18,6 +18,10 @@ export function openAppearance(target) {
 export function openSpaceMenu(id, checkout, tree) {
     openSurface({ spaceMenu: { id, checkout, tree } }, { kind: "popup", width: 280, height: menuHeight(checkout === "linked" ? 5 : 4) });
 }
+export function newSpaceInHome(machine = spaces().find(s => s.active)?.machine ?? null) {
+    // An explicit machine makes Herdr start in its home instead of inheriting cwd.
+    run("space.new", { machine: machine ?? "" });
+}
 export function openWorktree(space, action) {
     const target = spaces().find(s => s.id === space);
     if (!target)

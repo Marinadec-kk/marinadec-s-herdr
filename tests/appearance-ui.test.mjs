@@ -412,6 +412,35 @@ test("machine plus creates in that machine's home; only right-click opens appear
   assert.deepEqual(env.opened[0].props.appearance, { kind: "machine", machine: "pi" });
 });
 
+test("both sidebar plus buttons use the current machine's home rather than the focused checkout", () => {
+  for (const width of [44, 300]) {
+    env.layout.children[0].size.px = width;
+    const view = width === 44 ? new Spaces() : chrome("brand");
+    if (width === 44) view.init({}, env.cx);
+    const plus = find(view.render(), "space-new");
+    // Resolve the current machine at click time, including after a space switch.
+    // The host's focused() still points at the local project throughout.
+    for (const id of ["s2", "s3", "s1"]) {
+      for (const space of env.spaces) space.active = space.id === id;
+      plus.events.on_click({}, env.cx);
+      const machine = env.spaces.find(s => s.id === id).machine ?? "";
+      assert.deepEqual(env.commands.at(-1), ["space.new", { machine }]);
+    }
+  }
+  assert.equal(env.commands.length, 6);
+  assert.deepEqual(env.opened, []);
+});
+
+test("new-space menu retains its captured machine's home after focus changes", () => {
+  env.spaces[0].active = false;
+  env.spaces[1].active = true;
+  const menu = createPixelMenu({ newMenu: true, overlay: "new-popup" }, env.cx);
+  env.spaces[0].active = true;
+  env.spaces[1].active = false;
+  click(menu, "pixel-menu-space");
+  assert.deepEqual(env.commands, [["space.new", { machine: "pi" }]]);
+});
+
 test("worktree button opens immediately for a non-active remote space, without selection or drag", () => {
   const view = new Spaces(); view.init({}, env.cx);
   const control = find(view.render(), "space-worktree-s2");

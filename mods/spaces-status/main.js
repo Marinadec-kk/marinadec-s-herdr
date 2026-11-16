@@ -23,7 +23,7 @@ import { spaceHierarchy } from "./presentation/hierarchy.js";
 import { LINEAGE_KEY, readLineage, originFor, originLabel, sourceParent } from "./worktree-lineage.js";
 import { tabLabel, tabLead, machineLabel, spaceFolder } from "./presentation/labels.js";
 import { STATUS_RANK as RANK, statusTip } from "./presentation/status.js";
-import { openWorktree, openPicker, openTabRename } from "./overlays.js";
+import { openWorktree, openPicker, openTabRename, newSpaceInHome } from "./overlays.js";
 import { createView } from "./views/index.js";
 // The sidebar's rail goes by its width, not a flag: dragging its edge narrows it too.
 const sidebarWidth = () => findNode(layout(), "sidebar")?.size?.px ?? UI.sidebar;
@@ -526,11 +526,11 @@ export default class Spaces extends View {
                 .when(!connected, el => el.child(div().truncate().text_size(12).text_color(t.muted)
                 .child((machine?.state ?? "offline").replace(/_/g, " ")))))
                 .when(needs > 0, el => el.child(div().text_size(12).text_color(t.blocked).tooltip(`${needs} agents need you`).child(`! ${needs}`)))
-                .child(hierarchyActions(connected ? hierarchyButton(t, "machine", `machine-add-${m ?? "local"}`, "plus", `New space in ${machineLabel(m)} home`, () => run("space.new", { machine: m ?? "" })) : null, hierarchyButton(t, "machine", `machine-fold-${m ?? "local"}`, folded ? "right" : "down", folded ? "Show spaces" : "Hide spaces", foldMachine))));
+                .child(hierarchyActions(connected ? hierarchyButton(t, "machine", `machine-add-${m ?? "local"}`, "plus", `New space in ${machineLabel(m)} home`, () => newSpaceInHome(m)) : null, hierarchyButton(t, "machine", `machine-fold-${m ?? "local"}`, folded ? "right" : "down", folded ? "Show spaces" : "Hide spaces", foldMachine))));
             const connect = rebuilt && !collapsed ? h_flex().px(8).pb(8).gap(6).items_center()
                 .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.muted).child(repair?.error || "Machine identity changed"))
                 .child(button(t, `machine-connect-${m}`, repair?.busy ? "Connecting…" : "Connect", cx => this.reconnect(machine, cx), { disabled: Boolean(repair?.busy) }).tooltip(repair?.error || "Connect to the rebuilt machine")) : null;
-            const empty = actionRow(t, `machine-new-${m ?? "local"}`, "New space", () => run("space.new", { machine: m ?? "" }))
+            const empty = actionRow(t, `machine-new-${m ?? "local"}`, "New space", () => newSpaceInHome(m))
                 .px(collapsed ? 0 : 8).text_color(t.dim)
                 .when(collapsed, el => el.w(RAIL_CELL).justify_center().tooltip(`New space on ${m ?? "this computer"}`)
                 .child(h_flex().size(18).border(UI.stroke).border_color(t.dim).items_center().justify_center()
@@ -746,7 +746,7 @@ export default class Spaces extends View {
         const snapshot = { sp, ps, ms, all, allTerminals, colors, appearance, machineNames, origins, dark, width };
         return surface(t, "bar").flex_col().items_stretch().size_full()
             .when(collapsed, el => el.child(h_flex().w_full().h(UI.control).flex_none().justify_center().items_center()
-            .child(pixelButton(t, "space-new", "plus", "New space", () => run("space.new"), { quiet: true }))))
+            .child(pixelButton(t, "space-new", "plus", "New space in current machine’s home", () => newSpaceInHome(), { quiet: true }))))
             .child(v_flex().flex_1().min_h(0).px(collapsed ? 0 : 8).pt(8).pb(14).overflow_y_scrollbar().mode("always")
             .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
             .children(this.grouped(t, collapsed, snapshot)));

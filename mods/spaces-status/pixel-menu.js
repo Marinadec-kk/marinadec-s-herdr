@@ -4,7 +4,7 @@ import { closeOverlay, keys, knownAgents, run, setShared, shared, spaces, theme 
 import { record } from "./appearance-model.js";
 import { pixelIcon, programIcon } from "./pixel-ui.js";
 import { Menu } from "./ui/menu.js";
-import { openWorktree, openTabRename, closeTab, overlayProps } from "./overlays.js";
+import { openWorktree, openTabRename, closeTab, overlayProps, newSpaceInHome } from "./overlays.js";
 const KNOWN = "new-menu.agents";
 export function createPixelMenu(raw, cx) {
     const data = overlayProps(raw), tab = record(data.chromeMenu);
@@ -65,7 +65,7 @@ class PixelMenu {
                     run("tab.new", { space: space.id, argv: agent.run }); },
                 enabled: agent.installed && Boolean(space), hint: agent.installed ? (index < 9 ? String(index + 1) : "") : "not installed",
             })),
-            { id: "space", label: "New space", glyph: "plus", action: () => run("space.new"), hint: shortcut("space.new") },
+            { id: "space", label: "New space", glyph: "plus", action: () => newSpaceInHome(space?.machine ?? null), hint: shortcut("space.new") },
             { id: "worktree", label: "New worktree…", glyph: "branch", action: () => worktree("new"), enabled: Boolean(space) },
             { id: "worktree-open", label: "Open worktree…", glyph: "branch", action: () => worktree("open"), enabled: Boolean(space) },
         ];
