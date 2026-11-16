@@ -406,7 +406,7 @@ test("machine plus creates in that machine's home; only right-click opens appear
   plus.events["on_mouse_up:left"]({}, env.cx);
   plus.events.on_click({}, env.cx);
   assert.equal(env.stops, 3);
-  assert.deepEqual(env.commands, [["space.new", { machine: "pi" }]]);
+  assert.deepEqual(env.commands, [["space.new", { machine: "pi", folder: "" }]]);
   assert.equal(env.opened.length, 0);
   find(tree, "machine-pi").events["on_mouse_down:right"]({}, env.cx);
   assert.deepEqual(env.opened[0].props.appearance, { kind: "machine", machine: "pi" });
@@ -424,7 +424,7 @@ test("both sidebar plus buttons use the current machine's home rather than the f
       for (const space of env.spaces) space.active = space.id === id;
       plus.events.on_click({}, env.cx);
       const machine = env.spaces.find(s => s.id === id).machine ?? "";
-      assert.deepEqual(env.commands.at(-1), ["space.new", { machine }]);
+      assert.deepEqual(env.commands.at(-1), ["space.new", { machine, folder: "" }]);
     }
   }
   assert.equal(env.commands.length, 6);
@@ -438,7 +438,7 @@ test("new-space menu retains its captured machine's home after focus changes", (
   env.spaces[0].active = true;
   env.spaces[1].active = false;
   click(menu, "pixel-menu-space");
-  assert.deepEqual(env.commands, [["space.new", { machine: "pi" }]]);
+  assert.deepEqual(env.commands, [["space.new", { machine: "pi", folder: "" }]]);
 });
 
 test("worktree button opens immediately for a non-active remote space, without selection or drag", () => {

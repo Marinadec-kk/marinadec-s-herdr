@@ -22,8 +22,9 @@ export function openSpaceMenu(id: string, checkout: "main" | "linked" | null, tr
   openSurface({ spaceMenu: { id, checkout, tree } }, { kind: "popup", width: 280, height: menuHeight(checkout === "linked" ? 5 : 4) });
 }
 export function newSpaceInHome(machine: string | null = spaces().find(s => s.active)?.machine ?? null): void {
-  // An explicit machine makes Herdr start in its home instead of inheriting cwd.
-  run("space.new", { machine: machine ?? "" });
+  // Missing folder inherits cwd, even with an explicit machine. Herdr uses an
+  // explicitly empty folder for that machine's home (literal "~" is not expanded).
+  run("space.new", { machine: machine ?? "", folder: "" });
 }
 export function openWorktree(space: string, action: "new" | "open" | "remove"): void {
   const target = spaces().find(s => s.id === space);

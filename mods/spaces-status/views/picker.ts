@@ -13,7 +13,7 @@ import { dialog, dialogHeader } from "../ui/surfaces.js";
 import { actionRow, textInput, shortcut } from "../ui/controls.js";
 import { entityRow, rowEnd } from "../ui/rows.js";
 import { pixelIcon, pixelStatus, programIcon } from "../pixel-ui.js";
-import { closeTab } from "../overlays.js";
+import { closeTab, newSpaceInHome } from "../overlays.js";
 
 type Row =
   | { kind: "head"; id: string; space: SpaceInfo }
@@ -93,7 +93,7 @@ export class Picker {
     if (row.kind === "tab") {
       run("space.select", { id: row.space.id }); run("tab.select", { id: row.tab.id });
     } else if (row.kind === "new") run("tab.new");
-    else run("space.new", { machine: row.machine ?? "" });
+    else newSpaceInHome(row.machine);
   }
   render(): Element {
     const t = theme() as Theme, rows = this.rows(), pickable = rows.filter(r => r.kind !== "head");

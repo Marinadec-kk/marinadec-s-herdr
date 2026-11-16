@@ -10,7 +10,7 @@ import { dialog, dialogHeader } from "../ui/surfaces.js";
 import { actionRow, textInput, shortcut } from "../ui/controls.js";
 import { entityRow, rowEnd } from "../ui/rows.js";
 import { pixelIcon, pixelStatus, programIcon } from "../pixel-ui.js";
-import { closeTab } from "../overlays.js";
+import { closeTab, newSpaceInHome } from "../overlays.js";
 export class Picker {
     constructor(overlay, cx) {
         this.overlay = overlay;
@@ -99,7 +99,7 @@ export class Picker {
         else if (row.kind === "new")
             run("tab.new");
         else
-            run("space.new", { machine: row.machine ?? "" });
+            newSpaceInHome(row.machine);
     }
     render() {
         const t = theme(), rows = this.rows(), pickable = rows.filter(r => r.kind !== "head");
