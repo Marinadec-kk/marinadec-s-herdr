@@ -1,0 +1,7 @@
+{
+  "layout:main-status": {
+    "ctrl-shift-k": "spaces-status.picker",
+    "f2": "spaces-status.rename-tab",
+    "shift-f2": "spaces-status.rename-space"
+  }
+}

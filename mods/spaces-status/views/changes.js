@@ -1,0 +1,292 @@
+// Git reads, limits and commit flow adapted from Herdr 0.1.16 (Apache-2.0).
+import { div } from "gpui-kit";
+import { v_flex, h_flex, InputState, Scrollbar, v_virtual_list } from "gpui-base";
+import { exec, readTextFile, watchFolder, theme, settings } from "herdr";
+import { actionRow, button, textInput, secondary } from "../ui/controls.js";
+import { surface } from "../ui/surfaces.js";
+import { tint } from "../appearance-colors.js";
+import { panelLocation } from "./panel-location.js";
+import { UI } from "../ui/tokens.js";
+const READ = ["--no-optional-locks", "-c", "core.fsmonitor=false", "-c", "diff.autoRefreshIndex=false"];
+const untab = (text) => text.replace(/[^\t]*\t/g, s => s.slice(0, -1).padEnd((s.length - 1) - (s.length - 1) % 4 + 4));
+function diffRows(lines) {
+    let old = 0, next = 0;
+    return lines.map(line => {
+        const match = /^@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
+        if (match) {
+            old = +match[1];
+            next = +match[2];
+            return { kind: "@", text: line };
+        }
+        const kind = line[0];
+        if (kind === "-")
+            return { kind, number: old++, text: untab(line.slice(1)) || " " };
+        if (kind === "+")
+            return { kind, number: next++, text: untab(line.slice(1)) || " " };
+        if (kind === " ") {
+            old++;
+            return { kind, number: next++, text: untab(line.slice(1)) || " " };
+        }
+        return { kind: "", text: line };
+    });
+}
+export class Changes {
+    constructor(cx) {
+        this.files = [];
+        this.rows = [];
+        this.diffWidth = 300;
+        this.input = InputState.new({ placeholder: "Commit message" });
+        this.message = "";
+        this.typing = false;
+        this.context = "";
+        this.root = null;
+        this.on = null;
+        this.open = null;
+        this.hasHead = false;
+        this.watched = null;
+        this.closed = false;
+        this.limited = false;
+        this.busy = false;
+        this.loading = false;
+        this.error = "";
+        this.note = "";
+        this.handle = cx.focus_handle();
+        this.input.on("change", (_e, cx) => { this.message = this.input.value(); cx.notify(); });
+        this.input.on("submit", (_e, cx) => this.commit(cx));
+        this.input.on("focus", (_e, cx) => { this.typing = true; cx.notify(); });
+        this.input.on("blur", (_e, cx) => { this.typing = false; cx.notify(); });
+        this.refresh(cx);
+        cx.timer.every(10000, cx => this.refresh(cx));
+    }
+    current(context) { return this.context === context && panelLocation().key === context; }
+    watch(root, cx) {
+        if (this.on || this.watched === root)
+            return;
+        this.watched = root;
+        cx.spawn(async (cx) => {
+            try {
+                while (this.watched === root) {
+                    await watchFolder(root);
+                    if (this.watched === root)
+                        this.refresh(cx);
+                }
+            }
+            catch {
+                if (this.watched === root)
+                    this.watched = null;
+            }
+        });
+    }
+    refresh(cx) {
+        if (this.loading || this.busy)
+            return;
+        const { cwd, on, key: context } = panelLocation();
+        if (context !== this.context) {
+            this.context = context;
+            this.root = null;
+            this.files = [];
+            this.open = null;
+            this.setLines([]);
+            this.message = "";
+            this.input.set_value("");
+            this.error = this.note = "";
+            this.watched = null;
+            this.closed = this.limited = false;
+        }
+        if (!cwd)
+            return;
+        this.loading = true;
+        cx.spawn(async (cx) => {
+            try {
+                const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd, on });
+                if (!this.current(context))
+                    return;
+                if (top.code !== 0) {
+                    this.root = null;
+                    this.files = [];
+                    this.setLines([]);
+                    this.open = null;
+                    this.error = "Not a Git repository";
+                    return;
+                }
+                const root = top.stdout.trim(), git = (args) => exec("git", [...READ, ...args], { cwd: root, on });
+                const status = await git(["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"]);
+                if (status.code !== 0)
+                    throw new Error(status.stderr);
+                const head = await git(["rev-parse", "--verify", "HEAD"]);
+                const stats = {};
+                const results = head.code === 0 ? [await git(["diff", "HEAD", "--numstat", "-z", "--no-renames"])]
+                    : [await git(["diff", "--cached", "--numstat", "-z", "--no-renames"]), await git(["diff", "--numstat", "-z", "--no-renames"])];
+                for (const result of results) {
+                    if (result.code !== 0)
+                        throw new Error(result.stderr);
+                    for (const entry of result.stdout.split("\0")) {
+                        const [a, d, ...parts] = entry.split("\t");
+                        if (!parts.length)
+                            continue;
+                        const path = parts.join("\t"), old = stats[path] ?? { add: 0, del: 0 };
+                        stats[path] = { add: old.add + (Number(a) || 0), del: old.del + (Number(d) || 0), binary: a === "-" };
+                    }
+                }
+                const entries = status.stdout.split("\0").filter(Boolean), files = entries.slice(0, 1000).map((entry) => {
+                    const xy = entry.slice(0, 2), path = entry.slice(3), fresh = xy === "??", conflict = xy.includes("U") || xy === "AA" || xy === "DD";
+                    return { path, fresh, status: conflict ? "U" : xy.includes("D") ? "D" : fresh || xy.includes("A") ? "A" : "M", ...(stats[path] ?? { add: 0, del: 0 }) };
+                });
+                if (!this.current(context))
+                    return;
+                this.root = root;
+                this.on = on;
+                this.hasHead = head.code === 0;
+                this.files = files;
+                this.limited = entries.length > 1000;
+                this.error = "";
+                this.watch(root, cx);
+                if (this.open && !files.some(f => f.path === this.open)) {
+                    this.open = null;
+                    this.setLines([]);
+                }
+                if (!this.open && !this.closed && files.length)
+                    this.open = files[0].path;
+                if (this.open) {
+                    try {
+                        await this.load(this.open, context);
+                    }
+                    catch {
+                        if (this.current(context))
+                            this.setLines(["Cannot preview this diff (too large or unreadable)"]);
+                    }
+                }
+            }
+            catch (error) {
+                if (this.current(context))
+                    this.error = String(error);
+            }
+            finally {
+                this.loading = false;
+                cx.notify();
+            }
+        });
+    }
+    async load(path, context) {
+        const file = this.files.find(f => f.path === path), root = this.root, on = this.on;
+        if (!file || !root)
+            return;
+        let lines;
+        if (file.fresh || (!this.hasHead && file.status === "A")) {
+            const text = await readTextFile(`${root}/${path}`, { on }).catch(() => null);
+            if (text === null)
+                lines = ["Cannot preview this file (binary, too large, or unreadable)"];
+            else if (text.includes("\0"))
+                lines = ["Binary file · no text diff"];
+            else {
+                file.add = text ? text.split("\n").length - Number(text.endsWith("\n")) : 0;
+                lines = [`@@ -0,0 +1,${file.add} @@`, ...text.slice(0, 400000).replace(/\n$/, "").split("\n").slice(0, 1500).map(l => `+${l}`)];
+            }
+        }
+        else {
+            const r = await exec("git", [...READ, "diff", ...(this.hasHead ? ["HEAD"] : []), "--no-ext-diff", "--no-textconv", "--no-color", "--", path], { cwd: root, on });
+            if (r.code !== 0)
+                throw new Error(r.stderr);
+            const all = r.stdout.replace(/\n$/, "").split("\n"), first = all.findIndex(l => l.startsWith("@@"));
+            lines = first < 0 ? [file.binary ? "Binary file changed" : "No text diff available"] : all.slice(first);
+        }
+        if (this.current(context) && this.open === path)
+            this.setLines(lines.slice(0, 1500).map(line => line.length > 4000 ? line.slice(0, 4000) + "… (line truncated)" : line));
+    }
+    setLines(lines) {
+        this.rows = diffRows(lines);
+        this.diffWidth = Math.max(300, ...this.rows.map(row => (row.text.length + 1) * 8.4 + 50));
+    }
+    pick(path, cx) {
+        this.open = this.open === path ? null : path;
+        this.setLines([]);
+        this.note = "";
+        this.closed = !this.open;
+        const context = this.context;
+        if (this.open)
+            cx.spawn(async (cx) => {
+                try {
+                    await this.load(path, context);
+                }
+                catch (error) {
+                    if (this.current(context) && this.open === path)
+                        this.note = `Cannot preview this diff: ${error}`;
+                }
+                cx.notify();
+            });
+        cx.notify();
+    }
+    commit(cx) {
+        if (!this.message.trim() || !this.root || this.busy || this.loading || !this.current(this.context))
+            return;
+        const root = this.root, on = this.on, context = this.context, message = this.message.trim();
+        this.busy = true;
+        this.note = "";
+        cx.notify();
+        cx.spawn(async (cx) => {
+            try {
+                for (const args of [["add", "-A"], ["commit", "-m", message]]) {
+                    const result = await exec("git", args, { cwd: root, on });
+                    if (result.code !== 0)
+                        throw new Error((result.stderr || result.stdout).trim());
+                }
+                if (this.current(context)) {
+                    this.message = "";
+                    this.input.set_value("");
+                }
+            }
+            catch (error) {
+                if (this.current(context))
+                    this.note = `Commit failed: ${error}`;
+            }
+            finally {
+                this.busy = false;
+                this.refresh(cx);
+                cx.notify();
+            }
+        });
+    }
+    diffRow({ kind, number, text }, t) {
+        if (kind === "@")
+            return div().w_full().px(12).h(20).flex_none().truncate().bg(t.raised).text_color(t.dim).child(text);
+        return h_flex().w_full().h(20).flex_none().gap(10)
+            .when(kind === "+", el => el.bg(tint(t.ansi2, t.background, .1))).when(kind === "-", el => el.bg(tint(t.ansi1, t.background, .1)))
+            .child(div().w(30).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
+            .child(div().flex_1().min_w(0).truncate().child(text));
+    }
+    render(cx) {
+        if (cx && !this.current(this.context))
+            this.refresh(cx);
+        const t = theme(), add = this.files.reduce((n, f) => n + f.add, 0), del = this.files.reduce((n, f) => n + f.del, 0);
+        const enabled = Boolean(this.message.trim() && this.root && !this.busy && !this.loading), font = settings().font_family;
+        return surface(t, "panel").id("changes").size_full().overflow_hidden().track_focus(this.handle)
+            .on_key_down((event, cx) => { if (event.key === "escape" && this.typing) {
+            this.typing = false;
+            this.handle.focus();
+            cx.stop_propagation();
+            cx.notify();
+        } })
+            .child(h_flex().h(42).flex_none().px(12).gap(8).items_center().border_b(UI.stroke).border_color(t.border)
+            .child(div().font_semibold().child("Changes")).child(secondary(t, `${this.files.length} files`)).child(div().flex_1())
+            .child(secondary(t, `+${add}`).text_color(t.ansi2)).child(secondary(t, `−${del}`).text_color(t.ansi1)))
+            .child(div().flex_1().min_h(44).max_h(this.files.length * 28 + 12).relative().border_b(UI.stroke).border_color(t.border)
+            .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll().p(6)
+            .children(this.files.map(file => actionRow(t, `change-${file.path}`, file.path, cx => this.pick(file.path, cx), { selected: this.open === file.path }).h(28)
+            .child(secondary(t, file.status).w(14).text_color(file.status === "A" ? t.ansi2 : file.status === "D" || file.status === "U" ? t.ansi1 : t.blocked))
+            .child(div().flex_1().min_w(0).truncate().tooltip(file.path).text_color(t.foreground).child(file.path))
+            .when(file.add > 0, el => el.child(secondary(t, `+${file.add}`).text_color(t.ansi2)))
+            .when(file.del > 0, el => el.child(secondary(t, `−${file.del}`).text_color(t.ansi1)))))
+            .when(!this.files.length, el => el.child(secondary(t, this.error || (this.loading ? "Loading changes…" : this.root ? "No uncommitted changes" : "No folder")).p(8))))
+            .child(Scrollbar.vertical("changes-list").absolute().inset_0()))
+            .when(this.limited, el => el.child(secondary(t, "Showing the first 1,000 changed files").px(12)))
+            .child(div().flex_1().min_h(0).relative().font_family(typeof font === "string" ? font : "Liberation Mono").text_size(14)
+            .child(div().id("changes-diff-x").size_full().overflow_x_scrollbar()
+            .child(div().w_full().min_w(this.diffWidth).h_full().child(v_virtual_list("changes-diff", this.rows.length, 20, i => String(i), range => this.rows.slice(range.start, range.end).map(row => this.diffRow(row, t))).size_full())))
+            .child(Scrollbar.vertical("changes-diff").viewport_from_layout().absolute().inset_0())
+            .when(!this.open && this.files.length > 0, el => el.child(secondary(t, "Select a file to view its changes").absolute().top(6).px(12))))
+            .when(Boolean(this.note), el => el.child(secondary(t, this.note).px(10).pb(8).text_color(t.ansi1)))
+            .child(h_flex().flex_none().p(10).gap(8).border_t(UI.stroke).border_color(t.border)
+            .child(textInput(t, this.input).id("commit-message").flex_1().min_w(0))
+            .child(button(t, "commit", this.busy ? "Committing…" : "Commit", cx => this.commit(cx), { selected: true, disabled: !enabled })));
+    }
+}

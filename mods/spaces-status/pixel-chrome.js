@@ -1,10 +1,17 @@
 // Owned pixel chrome, adapted from Herdr 0.1.15's Apache-2.0 workspace mods.
 // Keep behavior (wheel/drag, per-space panels, traffic lights, pane targets).
 import { div } from "gpui-kit";
-import { h_flex, v_flex, ScrollHandle } from "gpui-base";
-import { agents, home, keys, layout, openOverlay, panes, props, run, settings, theme, setShared, shared, spaces, updates, window, } from "herdr";
-import { UI_FONT, UI_FONT_SIZE, record } from "./appearance-model.js";
+import { h_flex, ScrollHandle } from "gpui-base";
+import { agents, home, keys, layout, panes, props, run, settings, theme, setShared, shared, spaces, updates, window, } from "herdr";
+import { record } from "./appearance-model.js";
 import { pixelButton, pixelIcon, pixelStatus, programIcon } from "./pixel-ui.js";
+import { actionRow, button } from "./ui/controls.js";
+import { surface } from "./ui/surfaces.js";
+import { UI, menuHeight } from "./ui/tokens.js";
+import { machineLabel, shortPath, tabLabel } from "./presentation/labels.js";
+import { statusCounts } from "./presentation/status.js";
+import { openSurface, openPicker, openTabRename, closeTab, openMachineAdd } from "./overlays.js";
+export { tabLabel } from "./presentation/labels.js";
 export function createPixelChrome(raw) {
     const role = record({ ...record(raw), ...record(props()) }).chrome;
     if (role === "tabs")
@@ -44,19 +51,7 @@ function paneFrame(node) {
     return undefined;
 }
 function rootBar(t) {
-    return h_flex().size_full().min_w(0).items_center().bg(t.chrome)
-        .font_family(UI_FONT).text_size(UI_FONT_SIZE).text_color(t.muted);
-}
-export function tabLabel(tab, lead) {
-    const program = lead?.program;
-    const base = tab.named ? tab.name : program?.name ?? "Terminal";
-    if (!program?.agent)
-        return base;
-    const live = (lead?.title ?? "").replace(/^[^\p{L}\p{N}\p{Ps}\p{Pi}]+/u, "").replace(/^\[ [!.] \] /, "").trim();
-    const path = /^[~/]|^[A-Za-z]:\\/.test((lead?.title ?? "").replace(/^[^\p{L}\p{N}~/]+/u, ""));
-    const telling = live && live !== lead?.terminal && live !== program.name && !path
-        && !live.includes("@") && live.toLowerCase() !== program.key;
-    return (tab.name === program.name || !tab.named) && telling ? live : base;
+    return surface(t, "bar").size_full().text_color(t.muted);
 }
 class PixelTabs {
     constructor() {
@@ -144,20 +139,16 @@ class PixelTabs {
         this.syncPanel(space, panel, body, enabled);
         const panelButton = (id, label, glyph) => {
             const on = panel && !panel.hidden && body?.active === id;
-            return h_flex().id(`panel-${id}`).h(28).px(8).gap(6).flex_none().items_center()
-                .border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.chrome)
-                .hover(el => el.bg(t.hover)).cursor_pointer()
-                .on_mouse_down("left", (_event, cx) => cx.stop_propagation())
-                .on_click(() => {
+            return button(t, `panel-${id}`, label, () => {
                 if (on)
                     run("layout.hide", { id: "panel" });
                 else {
                     run("layout.select", { stack: "panel-body", child: id });
                     run("layout.show", { id: "panel" });
                 }
-            }).child(pixelIcon(glyph, on ? t.foreground : t.muted)).child(label);
+            }, { selected: Boolean(on) }).child(pixelIcon(glyph, on ? t.foreground : t.muted));
         };
-        return rootBar(t).px(10).pl(lightsPadding).gap(6).border_b(1).border_color(t.border)
+        return rootBar(t).px(10).pl(lightsPadding).gap(6).border_b(UI.stroke).border_color(t.border)
             .on_mouse_up("left", () => { this.pressed = null; })
             .on_scroll_wheel(event => this.wheel(event))
             .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(4)
@@ -168,17 +159,17 @@ class PixelTabs {
         } })
             .children(shown.map((tab, index) => {
             const lead = allPanes.find(p => p.tab === tab.id && p.program?.agent) ?? allPanes.find(p => p.tab === tab.id);
-            const pic = programIcon(lead?.program, 14, t.muted);
+            const pic = programIcon(lead?.program, UI.programIcon, t.muted), label = tabLabel(tab, lead);
             const status = pixelStatus(t, tab.status);
             return h_flex().id(`tab-${tab.id}`).h(30).px(10).gap(7).items_center().flex_none()
-                .border_1().border_color(tab.active ? t.accent : t.border).bg(tab.active ? t.raised : t.chrome)
+                .border(UI.stroke).border_color(tab.active ? t.accent : t.border).bg(tab.active ? t.raised : t.chrome)
                 .text_color(tab.active ? t.foreground : t.muted).hover(el => el.bg(t.hover))
                 .when(index <= active, el => el.on_size_change((_size, cx) => { this.scroll.scroll_to_item(active); cx.notify(); }))
                 .on_mouse_down("left", (event, cx) => {
                 cx.stop_propagation();
                 this.pressed = tab.id;
                 if (event.click_count === 2)
-                    run("tab.rename", { id: tab.id });
+                    openTabRename(tab.id);
             })
                 .on_mouse_up("left", (_event, cx) => {
                 cx.stop_propagation();
@@ -192,16 +183,16 @@ class PixelTabs {
             })
                 .on_mouse_down("right", (_event, cx) => {
                 cx.stop_propagation();
-                openOverlay({ mod: "spaces-status", kind: "popup", width: 230, props: { chromeMenu: { id: tab.id, space: space?.id } } });
+                openSurface({ chromeMenu: { id: tab.id, space: space?.id } }, { kind: "popup", width: 250, height: menuHeight(3) });
             })
                 .children(pic ? [pic] : [])
-                .child(div().max_w(240).truncate().tooltip(tabLabel(tab, lead)).child(`${tabLabel(tab, lead)}${tab.zoomed ? " [Z]" : ""}`))
+                .child(div().max_w(240).truncate().tooltip(label).child(`${label}${tab.zoomed ? " [Z]" : ""}`))
                 .children(status ? [status] : [])
-                .when(tab.active, el => el.child(pixelButton(t, `close-${tab.id}`, "close", "Close tab", () => run("tab.close", { id: tab.id })).size(18)));
+                .when(tab.active, el => el.child(pixelButton(t, `close-${tab.id}`, "close", "Close tab", () => closeTab(tab.id), { quiet: true })));
         })))
-            .child(pixelButton(t, "tab-new", "plus", "New terminal or agent", () => openOverlay({ mod: "spaces-status", kind: "popup", width: 280, height: 512, props: { newMenu: true } })))
-            .when(enabled.includes("files"), el => el.child(panelButton("files", "FILES", "file")))
-            .when(enabled.includes("changes"), el => el.child(panelButton("changes", "CHANGES", "branch")))
+            .child(pixelButton(t, "tab-new", "plus", "New terminal or agent", () => openSurface({ newMenu: true }, { kind: "popup", width: 280 })))
+            .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "file")))
+            .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "branch")))
             .when(Boolean(w?.buttons), el => el
             .child(pixelButton(t, "minimize", "minimize", "Minimize window", () => run("window.minimize")))
             .child(pixelButton(t, "maximize", "zoom", w?.maximized ? "Restore window" : "Maximize window", () => run("window.maximize")))
@@ -218,19 +209,19 @@ class PixelPane {
         if (!p)
             return div();
         const name = ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
-        const pic = programIcon(p.program, 14, t.muted), status = pixelStatus(t, p.status), pane = p.pane, cwd = p.cwd ?? "", h = home();
-        const folder = cwd === h ? "~" : cwd.startsWith(h + "/") ? "~" + cwd.slice(h.length) : cwd;
+        const pic = programIcon(p.program, UI.programIcon, t.muted), status = pixelStatus(t, p.status), pane = p.pane, cwd = p.cwd ?? "";
+        const remote = spaces().find(s => s.tabs.some(tab => tab.id === p.tab))?.machine;
+        const folder = remote ? cwd : shortPath(cwd, home());
         const bottom = paneFrame(layout())?.pane?.header?.position === "bottom";
         return rootBar(t).id(`pane-head-${pane}`).px(10).gap(8).bg(t.background)
-            .when(bottom, el => el.border_t(1)).when(!bottom, el => el.border_b(1))
+            .when(bottom, el => el.border_t(UI.stroke)).when(!bottom, el => el.border_b(UI.stroke))
             .border_color(p.focused ? t.accent : t.border)
             .on_hover((hovered, cx) => { this.hovered = hovered; cx.notify(); })
             .on_click(() => run("pane.focus", { pane }))
-            .children(pic ? [pic] : [])
-            .child(div().flex_none().max_w(260).truncate().text_color(t.foreground).child(name))
-            .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(folder))
+            .children(pic ? [div().flex_none().tooltip(name).child(pic)] : [])
+            .when(!pic, el => el.child(div().flex_none().max_w(260).truncate().text_color(t.foreground).child(name)))
+            .child(div().flex_1().min_w(0).truncate().text_color(t.dim).tooltip(cwd).child(folder))
             .children(status ? [status] : [])
-            .when(p.status === "blocked", el => el.child(div().text_color(t.blocked).child("NEEDS YOU")))
             .child(h_flex().flex_none().gap(4).when(!this.hovered, el => el.invisible())
             .child(pixelButton(t, `ph-r-${pane}`, "split", "Split right", () => run("pane.split", { direction: "right", pane })))
             .child(pixelButton(t, `ph-d-${pane}`, "splitDown", "Split down", () => run("pane.split", { direction: "down", pane })))
@@ -246,49 +237,49 @@ class PixelBars {
         const t = theme();
         if (this.role === "status")
             return this.status(t);
-        const root = layout(), width = findNode(root, "sidebar")?.size?.px ?? 299;
-        const collapsed = width < 160, w = window();
+        const root = layout(), width = findNode(root, "sidebar")?.size?.px ?? UI.sidebar;
+        const collapsed = width < UI.railBelow, w = window();
         if (this.role === "footer") {
-            const row = (id, glyph, label, action) => h_flex().id(id).h(28).px(8).gap(9).items_center().cursor_pointer()
+            const row = (id, glyph, label, action) => actionRow(t, id, label, action).h(28)
                 .when(collapsed, el => el.relative().w(32).px(0).justify_center().tooltip(label))
-                .text_color(t.muted).hover(el => el.bg(t.hover).text_color(t.foreground))
-                .on_click(action).child(pixelIcon(glyph, t.muted)).when(!collapsed, el => el.child(label));
+                .child(pixelIcon(glyph, t.muted)).when(!collapsed, el => el.child(label));
             const ready = div().size(6).bg(t.accent);
-            return v_flex().size_full().bg(t.chrome).font_family(UI_FONT).text_size(UI_FONT_SIZE)
-                .border_t(1).border_color(t.border).px(8).pt(4).pb(8).when(collapsed, el => el.px(0).items_center())
+            return surface(t, "bar").flex_col().items_stretch().size_full()
+                .border_t(UI.stroke).border_color(t.border).px(8).pt(4).pb(8).when(collapsed, el => el.px(0).items_center())
                 .child(row("settings", "settings", "Settings", () => run("app.settings"))
                 .when(Boolean(updates().app.ready), el => el.child(collapsed ? ready.absolute().top(5).right(6) : ready)))
-                .child(row("machine", "plus", "Add machine", () => run("mod.open", { name: "machine-add" })));
+                .child(row("machine", "plus", "Add machine", openMachineAdd));
         }
-        return rootBar(t).pl(collapsed ? 6 : 12).pr(10).gap(6).border_b(1).border_color(t.border)
+        return rootBar(t).pl(collapsed ? 6 : 12).pr(10).gap(6).border_b(UI.stroke).border_color(t.border)
             .when(w?.platform === "macos" && !w.fullscreen && !collapsed, el => el.pl(76))
             .when(!collapsed, el => el.child(h_flex().flex_1().gap(8).items_center()
             .child(div().text_size(16).font_semibold().text_color(t.foreground).child("HERDR"))))
-            .when(!collapsed, el => el.child(pixelButton(t, "search", "search", "Find a space or terminal", () => run("mod.open", { name: "picker" }))))
+            .when(!collapsed, el => el.child(pixelButton(t, "space-new", "plus", "New space", () => run("space.new")))
+            .child(pixelButton(t, "search", "search", "Find a space or terminal", openPicker)))
             .when(!(collapsed && w?.platform === "macos"), el => el.child(pixelButton(t, "sidebar-toggle", "sidebar", collapsed ? "Expand sidebar" : "Collapse sidebar", () => {
             if (!collapsed)
                 setShared("sidebar.width", width);
             setShared("sidebar.collapsed", !collapsed);
             const saved = shared("sidebar.width");
-            const previous = typeof saved === "number" && saved >= 160 ? saved : 299;
+            const previous = typeof saved === "number" && saved >= UI.railBelow ? saved : UI.sidebar;
             run("layout.resize", { id: "sidebar", px: collapsed ? previous : w?.platform === "macos" ? 76 : 44 });
         })));
     }
     status(t) {
         const space = spaces().find(s => s.active), list = agents();
-        const needs = list.filter(a => a.status === "blocked").length, mac = window()?.platform === "macos";
+        const counts = statusCounts(list), mac = window()?.platform === "macos";
         const aliases = { cmd: mac ? "⌘" : "Super+", ctrl: mac ? "⌃" : "Ctrl+", shift: mac ? "⇧" : "Shift+", alt: mac ? "⌥" : "Alt+" };
         const binding = keys().find(k => k.section === "global" && k.action === "app.palette");
         const parts = binding?.keys.endsWith("--") ? [...binding.keys.slice(0, -2).split("-"), "-"] : binding?.keys.split("-");
         const hint = parts?.map(p => aliases[p.toLowerCase()] ?? p.toUpperCase()).join("");
         const label = (glyph, text) => h_flex().gap(6).items_center().child(pixelIcon(glyph, t.muted)).child(text);
-        return rootBar(t).px(14).gap(16).border_t(1).border_color(t.border).text_size(14)
-            .child(label(space?.machine ? "server" : "monitor", space?.machine ?? "This computer"))
+        return rootBar(t).px(14).gap(16).border_t(UI.stroke).border_color(t.border).text_size(14)
+            .child(label(space?.machine ? "server" : "monitor", machineLabel(space?.machine)))
             .when(Boolean(space?.branch), el => el.child(label("branch", space?.branch ?? "")))
-            .child(h_flex().gap(6).items_center().child(div().size(6).bg(t.dim)).child(`${list.length} agents`)
-            .when(needs > 0, el => el.child(div().text_color(t.blocked).child(`· ${needs} needs you`))))
+            .child(h_flex().gap(6).items_center().child(div().size(6).bg(t.dim)).child(`${counts.total} agents`)
+            .when(counts.blocked > 0, el => el.child(div().text_color(t.blocked).child(`· ${counts.blocked} need you`))))
             .child(div().flex_1())
-            .child(div().id("palette").text_color(t.dim).cursor_pointer().on_click(() => run("app.palette"))
+            .child(actionRow(t, "palette", "Commands", () => run("app.palette")).h(24).text_color(t.dim)
             .child(hint ? `[${hint}] commands` : "commands"));
     }
 }

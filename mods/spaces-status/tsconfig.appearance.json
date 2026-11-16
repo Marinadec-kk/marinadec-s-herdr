@@ -4,5 +4,5 @@
     "strictNullChecks": true,
     "noEmit": true
   },
-  "include": ["appearance-*.ts", "pixel-*.ts", "*-catalog.ts", "types/*.d.ts"]
+  "include": ["appearance-*.ts", "pixel-*.ts", "*-catalog.ts", "overlays.ts", "ui/**/*.ts", "presentation/**/*.ts", "views/**/*.ts", "types/*.d.ts"]
 }

@@ -8,6 +8,8 @@
   "font": "Liberation Mono",
   "font_size": 14,
   "ui_font": "Liberation Sans",
+  "terminal_menu": "spaces-status",
+  "toast": "spaces-status",
   "children": [
     {
       "id": "sidebar",
@@ -18,7 +20,9 @@
           "type": "block",
           "content": {
             "mod": "spaces-status",
-            "props": { "chrome": "brand" }
+            "props": {
+              "chrome": "brand"
+            }
           },
           "size": {
             "px": 42
@@ -67,7 +71,9 @@
           "type": "block",
           "content": {
             "mod": "spaces-status",
-            "props": { "chrome": "tabs" }
+            "props": {
+              "chrome": "tabs"
+            }
           },
           "size": {
             "px": 42
@@ -87,7 +93,9 @@
                   "header": {
                     "content": {
                       "mod": "spaces-status",
-                      "props": { "chrome": "pane" }
+                      "props": {
+                        "chrome": "pane"
+                      }
                     },
                     "reveal": "always",
                     "height": 32,
@@ -95,11 +103,11 @@
                   },
                   "background": "background",
                   "border": {
-                    "width": 1,
+                    "width": 2,
                     "color": "border"
                   },
                   "focus": {
-                    "width": 1,
+                    "width": 2,
                     "color": "accent"
                   },
                   "radius": 0,
@@ -120,14 +128,20 @@
                       "id": "files",
                       "type": "block",
                       "content": {
-                        "mod": "files"
+                        "mod": "spaces-status",
+                        "props": {
+                          "view": "files"
+                        }
                       }
                     },
                     {
                       "id": "changes",
                       "type": "block",
                       "content": {
-                        "mod": "changes"
+                        "mod": "spaces-status",
+                        "props": {
+                          "view": "changes"
+                        }
                       }
                     }
                   ],
@@ -150,7 +164,9 @@
           "type": "block",
           "content": {
             "mod": "spaces-status",
-            "props": { "chrome": "status" }
+            "props": {
+              "chrome": "status"
+            }
           },
           "size": {
             "px": 28
@@ -166,7 +182,7 @@
     12
   ],
   "divider": {
-    "width": 1,
+    "width": 2,
     "color": "border"
   },
   "titlebar": "none",

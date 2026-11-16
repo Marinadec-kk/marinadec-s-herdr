@@ -1,17 +1,17 @@
 # Marinadec's Herdr
 
-A pixel-art workspace for the [Herdr](https://herdr.dev) desktop app. Every agent tab appears under its space with its harness, live status and sub-agent count. Machines have editable colors and characters; ordinary spaces use Sharp icons and automatic shades. Worktrees nest under their checkout and inherit its color.
+A pixel-art workspace for the [Herdr](https://herdr.dev) desktop app. Every agent tab appears under its space with its harness, live status and sub-agent count. Machine colors follow their chosen characters; ordinary spaces use Sharp icons and automatic shades. Worktrees nest under their checkout and inherit its color.
 
 - **Liberation typography.** Liberation Mono 14 for terminals and Liberation Sans with a 14 px base size for the interface. Both families are bundled, including regular, bold, italic and bold italic faces with Cyrillic support. Headings, hints and avatar glyphs keep their contextual sizes.
 - **Pixel chrome.** Square controls, bitmap glyphs and sharp pane frames across the sidebar, tabs, pane headers, brand/footer and status bar. Fonts are configured by this layout and its mod.
-- **Clear hierarchy.** Machines have quiet 1 px frames and 12 px separation. Their spaces share a tonal family, with 2 px edges and 4 px separation. Sessions sit inside their space; the active session gets the strongest fill.
+- **Clear hierarchy.** Shared 2 px frames surround machines, spaces, controls and panes. Machines have 12 px separation; spaces have 4 px separation. Sessions sit inside their space; the active session gets the strongest fill.
 
 - **Inline sessions.** A tab gets a row only if it runs Claude Code, OpenCode, Pi or another agent. The row shows the harness icon, the tab's name, `+N` for sub-agents and the tab's own status.
 - **One status per level.** Expanded, a space leaves status to its session rows. Fold it with the chevron at the right edge, and the space row summarizes its harnesses and the most urgent status.
-- **Worktrees nest.** Worktrees and their sessions indent under their checkout. Every detected worktree has a fixed Git-tree icon and inherits its parent's color; it consumes no separate shade slot.
+- **Worktrees nest.** New branches nest under the space/worktree they were created from, with a source branch/commit caption. Existing worktrees without recorded creation history group under their repository's main checkout. Worktrees form a smaller third size tier after machines and ordinary spaces; nested worktrees keep that same size. Every worktree has a fixed Git-tree icon and inherits its parent's color; it consumes no separate shade slot.
 - **Separate identities.** Machines use one of 32 characters; ordinary spaces use Material Icons **Sharp only**. Initial icons are randomly selected from unused choices where possible, then saved by ID. Names and project contents do not choose an icon.
-- **Machines.** With a known remote, each machine gets a tinted card, 32 px character, 16 px name and connection/space count. A blocked-agent count remains visible when the group is folded. Offline machines retain their cards. With only this computer, there is no machine header/card.
-- **Compact rail.** Below 240 px the header simplifies; below 160 px the sidebar becomes a rail of characters, Sharp icons and status dots.
+- **Machines.** Each group has a 36 px character, 16 px name, connection badge and a real blocked-agent count. Its base color comes from the character's first-frame accent; no manual color controls. Right-click edits the character; `+` creates a space in that machine's home.
+- **Compact rail.** Below 160 px, 28 px machine characters head tinted cards. Spaces use 32 px rows and worktrees 28 px rows, with 2 px connecting tree lines ending at each last child. Hover shows full ancestry; deep trees fit within two connector lanes.
 - **Navigation.** Click to switch, right-click for the space menu, drag to reorder. Branch/ahead/behind tails appear at sidebar widths of 340 px and above.
 
 ## Install
@@ -76,6 +76,8 @@ You can also select it in Herdr's layout picker. `ctrl-shift-l` switches between
 
 ### Custom keys
 
+Merge `keys.main-status.json` into Herdr's `keys.json` to route `Ctrl+Shift+K`, F2 and Shift+F2 to this layout's search, tab rename and space appearance. These bindings are scoped to `layout:main-status`; preserve other sections and resolve any existing layout-specific bindings before replacing them. When installing under another name, rename both the section and the `spaces-status.*` actions.
+
 `keys.json` in this repository holds an optional `alt-shift-f` binding: it opens [Yazi](https://github.com/sxyazi/yazi) in a right split. Ask your agent to add it, or merge the binding into the `global` section of Herdr's `keys.json` (`$HERDR_APP_HOME/keys.json` when set). Keep the other bindings; if this key is already assigned, choose another key or explicitly replace its action:
 
 ```json
@@ -99,7 +101,7 @@ In a layout of your own, point the spaces block at this mod:
 { "id": "spaces", "type": "block", "size": { "weight": 1 }, "min": 90, "content": { "mod": "spaces-status" } }
 ```
 
-For pixel chrome too, use the supplied layout: it places this same mod with `props.chrome` set to `brand`, `footer`, `tabs`, `pane` or `status`. These copies return before sidebar initialization and never start its pollers. Files/Changes contents, the app picker, settings and core-owned dialogs remain stock; no shipped mod is overwritten.
+For pixel chrome too, use the supplied layout: it places this same mod with `props.chrome` set to `brand`, `footer`, `tabs`, `pane` or `status`. `props.view` selects the search, worktree, machine-add, rename/confirmation and Files/Changes controllers. These copies return before sidebar initialization and never start its pollers. Terminal menus and toasts use the layout's supported overrides. Settings, the app palette, Welcome and internally opened dialogs remain app-owned.
 
 ## Use
 
@@ -107,24 +109,28 @@ For pixel chrome too, use the supplied layout: it places this same mod with `pro
 - The chevron at the right edge of a space folds its sessions. Fold state is per mod copy, kept in `localStorage` under `spaces.sessions.folded`.
 - Drag a space row to reorder it inside its machine; right-click for the usual space menu (rename, worktrees, close).
 - Click a machine header to fold its spaces. Login guidance and Copy stay visible when folded; a rebuilt machine shows Connect below its header.
-- **Space name and icon:** right-click → **Rename & appearance…**. Worktrees have a fixed icon and offer renaming only. Right-click a rail space to open its editor.
-- **Machine color and avatar:** use the small settings button in its header, or right-click the header (also in the rail).
-- Machines offer **24 named base colors**, a custom `#rrggbb` field and a searchable character gallery. Spaces get one of **12 inherited shades**, using unoccupied slots first; there are no manual shade controls or shade-strip previews.
+- The Git-branch button beside a space opens **New worktree** directly for that space, including remote spaces, without selecting it. The dialog checks its live folder and explains when it is outside Git.
+- Machine, space and worktree actions use 28, 24 and 20 px targets; titles use 16, 14 and 12 px. All three tiers occupy the same two centered action columns, so `+`/worktree and fold controls align. Worktrees do not shrink further with depth.
+- A new branch starts at the clicked checkout's current commit, recorded with its source space, branch and path. The sidebar preserves this ancestry across restart and reopening a checkout. Checking out an existing branch does not invent a source relationship.
+- **Space name and icon:** right-click → **Rename & appearance…**. Worktrees have a fixed icon and offer renaming only. The same context menu opens in expanded and compact modes.
+- **Machine avatar:** right-click its header (also in the rail). Choosing a character previews its automatic accent; Save applies it to the machine and its spaces.
+- Spaces get one of **12 inherited shades**, using unoccupied slots first; there are no manual color/shade controls or shade-strip previews.
 - Spaces offer the full available **Material Sharp** catalog with search and categories. No style selector. Worktrees always use `account_tree`.
-- Avatar **Auto** returns to the saved random icon without rerolling. **Reset** restores saved defaults; **Cancel** discards drafts. Preview and Save/Cancel stay outside scrolling. Down from search enters the gallery; arrows navigate, Enter selects, Ctrl/Cmd+Enter saves.
+- Avatar **Default** returns to the saved random icon without rerolling; **Cancel** discards drafts. Preview and Save/Cancel stay outside scrolling. Down from search enters the gallery; arrows navigate, Enter selects, Ctrl/Cmd+Enter saves.
 - Character labels use friendly names. Original IDs, sources, attribution and licenses remain bundled in `icons/plushies/`. Sprite sheets show their first frame, without animation.
 - `agent.next` / `agent.prev` follow the session rows in list order: the mod calls `setAgentOrder` on render.
 - Dragging the sidebar below 160 px switches to the compact rail.
 
 ## Customize
 
-- **Colors:** `PROJECT_COLORS`/`COLOR_NAMES` define 24 machine colors. `appearance-colors.ts` derives 12 OKLCH shades with light/dark variants and gamut mapping. Ordinary spaces use free slots first; changing the machine color updates the family. Concrete hex colors are shared with the shipped picker through `space.colors`.
+- **Colors:** `character-accents.ts` contains accents extracted offline from the displayed first frame of each character. `appearance-colors.ts` derives 12 OKLCH shades with light/dark variants and gamut mapping. Changing the character updates its family without reallocating icons or tone slots. `space.colors` remains published for compatibility; our search only reads identities/colors and never prunes or allocates them.
 - **Sidebar width:** the layout starts at 299 px; drag the divider or edit the `sidebar` size in `layouts/main-status.json`. Below 160 px the rail takes over.
+- **Frames and controls:** `ui/tokens.ts` owns `UI.stroke` (2 px), shared sizes and the three fixed `HIERARCHY` tiers; `ui/hierarchy.ts` owns hierarchy actions and tree connectors. Build synchronizes native layout border/divider widths from the same token.
 - **Theme:** the layout pins `{ "light": "paper", "dark": "ink" }`; change the root `theme` or use the theme picker.
 - **Fonts:** the layout sets `font: "Liberation Mono"`, `font_size: 14` and `ui_font: "Liberation Sans"`. The mod's `UI_FONT` and `UI_FONT_SIZE` in `appearance-model.ts` set its base UI typography to Liberation Sans 14; rebuild after changing them.
-- **Saved appearance:** schema v2 in `spaces-status.appearance` stores profiles and defaults by space ID or machine identity (`local` / `remote:<name>`). Migration retains character choices, compatible Material names and machine colors; old Material styles become Sharp, old space color overrides give way to inherited colors. Worktree icons are locked.
+- **Saved appearance:** schema v2 in `spaces-status.appearance` stores profiles and defaults by space ID or machine identity (`local` / `remote:<name>`). Existing character choices and compatible Material names remain; old Material styles become Sharp. Legacy machine colors are readable but no longer determine the displayed color. Worktree icons are locked.
 - **Allocation:** random characters are reserved across machines, random icons within each machine. Shade slots are allocated from unused slots first. Existing/offline identities retain their defaults; exhausted pools reuse least-used candidates. Renaming a connection changes its identity key.
-- **Assets:** the source Material catalog/fonts remain bundled, but the UI uses Sharp exclusively. No runtime downloads. Sidebar avatar choices do not replace shipped picker icons.
+- **Assets:** the source Material catalog/fonts remain bundled, but the UI uses Sharp exclusively. No runtime downloads. Our search uses the sidebar's saved avatars; stock search entrypoints inside the app palette retain their own presentation.
 
 ## Build
 
@@ -139,7 +145,7 @@ npm run test
 
 `npm run check` type-checks without writing. The `tsconfig.json` follows the settings Herdr writes into every mod's `jsconfig.json`: `strict` with `strictNullChecks` off, because a View assigns its state in `init` and TypeScript cannot see that as definite assignment. The declaration files in `mods/spaces-status/types/` are Herdr's own, snapshotted from 0.1.15; copy a newer one over from `~/.config/herdr-app/mods/<any mod>/gpui-kit.d.ts` when the mod moves to a newer Herdr.
 
-Appearance and pixel-chrome modules additionally pass `tsconfig.appearance.json` with `strictNullChecks: true`. Tests use Node's built-in runner and host mocks (validated on Node 26.13.0), without a test framework or a running Herdr. `npm run sync-icons` and `npm run sync-plushies` are development-only asset importers; ordinary build/install never accesses the network.
+Appearance, chrome, UI-kit, presentation and view-controller modules additionally pass `tsconfig.appearance.json` with `strictNullChecks: true`. Tests use Node's built-in runner and host mocks, without a test framework or a running Herdr. `npm run sync-icons` and `npm run sync-plushies` are development-only asset importers. After changing character assets, run `npm run character-accents` to regenerate their accents offline; ordinary build/install never accesses the network.
 
 The API baseline remains Herdr 0.1.15; the current validation target is Herdr 0.1.16 with hc 0.1.21. A check on 0.1.16 does not replace a runtime compatibility test on 0.1.15.
 
@@ -152,6 +158,12 @@ mods/spaces-status/main.js         what Herdr loads: main.ts compiled (committed
 mods/spaces-status/appearance-*.ts  validated settings, shared avatar renderer, editor
 mods/spaces-status/appearance-*.js  compiled helper modules (committed)
 mods/spaces-status/pixel-*.ts/js    typed chrome, menus and shared bitmap controls
+mods/spaces-status/ui/             shared controls, rows, menus, surfaces and geometry
+mods/spaces-status/presentation/   pure labels, status and read-only identity projections
+mods/spaces-status/views/          picker, dialogs, worktrees, machines, files, changes, toasts
+mods/spaces-status/overlays.ts/js   one place for owned overlay opening and explicit targets
+mods/spaces-status/character-accents.ts/js  build-time character accent table
+mods/spaces-status/worktree-lineage.ts/js   saved exact creation origins by machine/checkout
 mods/spaces-status/material-catalog.* generated full Material Icons search index
 mods/spaces-status/plush-catalog.*  validated SS14 sprite-sheet index
 mods/spaces-status/fonts/           Liberation/Material fonts + Tiny5, licenses and hashes
@@ -164,8 +176,10 @@ mods/spaces-status/icons/plushies/  32 original SS14 PNGs, metadata and CREDITS.
 tests/                            pure-model and mocked UI regression tests
 scripts/sync-material-icons.mjs    development-only icon asset importer
 scripts/sync-plushies.mjs          development-only SS14/Tiny5 importer
+scripts/sync-ui-layout.mjs         derives native layout frame widths from UI.stroke
 package.json                       npm run build: tsc, no runtime dependencies
 keys.json                          the optional alt-shift-f / Yazi binding
+keys.main-status.json              layout-scoped search and rename bindings to merge
 RECIPE.md                          the build brief: what it is and how to recreate it
 ```
 

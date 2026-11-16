@@ -2,7 +2,8 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
-import { APPEARANCE_KEY, ensureMachineDefaults, ensureSpaceDefaults, readAppearance } from "../mods/spaces-status/appearance-model.js";
+import { APPEARANCE_KEY, ensureMachineDefaults, ensureSpaceDefaults, readAppearance, machineColor } from "../mods/spaces-status/appearance-model.js";
+import { CHARACTER_ACCENTS } from "../mods/spaces-status/character-accents.js";
 
 function element(kind) {
   const node = { kind, kids: [], props: {}, events: {} };
@@ -28,7 +29,7 @@ function element(kind) {
 function environment() {
   const env = {
     inputs: [], values: new Map(), calls: new Map(), commands: [], opened: [], closed: [], writes: [],
-    timers: 0, spawns: 0, notifications: 0, props: {}, scrolls: [], panes: [], agents: [], terminals: [],
+    timers: 0, spawns: 0, notifications: 0, props: {}, scrolls: [], panes: [], agents: [], terminals: [], jobs: [], clipboard: [], stops: 0,
     layout: { id: "root", children: [{ id: "sidebar", size: { px: 299 } }] },
     spaces: [
       { id: "s1", name: "Demo", named: true, machine: null, folder: "/demo", tabs: [], active: true, status: null },
@@ -39,9 +40,10 @@ function environment() {
   env.values.set(APPEARANCE_KEY, ensureSpaceDefaults(ensureMachineDefaults(readAppearance(null), [null, "pi", "small"]), env.spaces));
   env.values.set("space.colors", { s1: "ansi6", s2: "ansi3", s3: "ansi4" });
   env.cx = {
-    notify: () => { env.notifications++; }, stop_propagation() {},
+    notify: () => { env.notifications++; }, stop_propagation() { env.stops++; },
+    write_to_clipboard: text => env.clipboard.push(text),
     focus_handle: () => { let focused = false; return { focus() { focused = true; }, is_focused() { return focused; } }; },
-    spawn: () => { env.spawns++; },
+    spawn: job => { env.spawns++; env.jobs.push(job); },
     timer: { every: () => { env.timers++; }, after: () => { env.timers++; } },
   };
   env.element = element;
@@ -68,6 +70,11 @@ function environment() {
     if (name === "layout") return structuredClone(env.layout);
     if (name === "window") return { platform: "linux", buttons: true, titlebar: "none" };
     if (name === "home") return "/home/test";
+    if (name === "appHome") return "/mock/herdr";
+    if (name === "readTextFile") return Promise.resolve(null);
+    if (name === "focused") return { space: "s1", tab: "t1", pane: "p1" };
+    if (name === "exec" && env.exec) return env.exec(...args);
+    if (name === "hc" && env.hc) return env.hc(...args);
     if (name === "keys") return [{ section: "global", keys: "ctrl-shift-p", action: "app.palette" }];
     if (name === "updates") return { app: { ready: null } };
     if (name === "theme") return new Proxy({ foreground: "#eeeeee", ansi6: "#22a99a" }, { get: (o, k) => o[k] ?? "#333333" });
@@ -88,11 +95,15 @@ const modules = {
   "gpui-base": `export const h_flex=()=>globalThis.__appearanceHost.element("row");
     export const v_flex=()=>globalThis.__appearanceHost.element("column");
     export const ScrollHandle={new:()=>({scroll_to_item: index=>globalThis.__appearanceHost.scrolls.push(index)})};
+    export const Scrollbar={vertical: id=>globalThis.__appearanceHost.element("scrollbar").id(id)};
+    export const EditorState={new: options=>({options,release(){}})};
+    export const Editor={new: state=>globalThis.__appearanceHost.element("editor").state(state)};
+    export const v_virtual_list=(id,count,height,key,render)=>globalThis.__appearanceHost.element("virtual-list").id(id).children(render({start:0,end:count}));
     export const InputState={new: options=>globalThis.__appearanceHost.input(options)};
     export const Input={new: state=>globalThis.__appearanceHost.element("input").state(state)};`,
   herdr: ["closeOverlay", "openOverlay", "props", "run", "shared", "setShared", "spaces", "theme", "agents", "terminals",
     "machines", "panes", "exec", "hc", "settings", "setAgentOrder", "watchFolder", "window", "layout",
-    "home", "keys", "updates", "knownAgents"]
+    "home", "keys", "updates", "knownAgents", "nextCommand", "appHome", "readTextFile", "focused"]
     .map(name => `export const ${name}=(...args)=>globalThis.__appearanceHost.call("${name}",...args);`).join("\n"),
 };
 registerHooks({ resolve(specifier, context, next) {
@@ -104,6 +115,11 @@ const { default: Spaces } = await import("../mods/spaces-status/main.js");
 const { renderAvatar } = await import("../mods/spaces-status/appearance-avatar.js");
 const { createPixelMenu } = await import("../mods/spaces-status/pixel-menu.js");
 const { tabLabel } = await import("../mods/spaces-status/pixel-chrome.js");
+const { createView } = await import("../mods/spaces-status/views/index.js");
+const { openWorktree } = await import("../mods/spaces-status/overlays.js");
+const { Menu } = await import("../mods/spaces-status/ui/menu.js");
+const { button } = await import("../mods/spaces-status/ui/controls.js");
+const { LINEAGE_KEY, checkoutKey, readLineage } = await import("../mods/spaces-status/worktree-lineage.js");
 let env;
 beforeEach(() => {
   env = environment();
@@ -122,12 +138,13 @@ const click = (ui, id) => {
 };
 const editor = target => createAppearanceOverlay({ appearance: target, overlay: "editor" }, env.cx);
 
-test("machine editor has both color and avatar controls and starts no sidebar pollers", () => {
+test("machine editor derives color from its character and starts no sidebar pollers", () => {
   const ui = editor({ kind: "machine", machine: "pi" });
-  click(ui, "color-4");
+  assert.equal(find(ui.render(), "color-4"), undefined);
   click(ui, "avatar-plush-ss14-moth-icon");
   click(ui, "appearance-save");
-  assert.deepEqual(env.values.get(APPEARANCE_KEY).machines["remote:pi"], { color: "#3fae6a", avatar: { kind: "plush", id: "ss14-moth-icon" } });
+  assert.deepEqual(env.values.get(APPEARANCE_KEY).machines["remote:pi"], { avatar: { kind: "plush", id: "ss14-moth-icon" } });
+  assert.equal(machineColor(env.values.get(APPEARANCE_KEY), "pi", {}), CHARACTER_ACCENTS["ss14-moth-icon"]);
   assert.deepEqual(env.closed, ["editor"]);
   assert.equal(env.timers, 0);
   assert.equal(env.spawns, 0);
@@ -136,7 +153,7 @@ test("machine editor has both color and avatar controls and starts no sidebar po
 test("space rename and Sharp icon save against the clicked id without color controls", () => {
   const ui = editor({ kind: "space", id: "s1" });
   env.inputs[0].set_value("Renamed demo");
-  env.inputs[2].set_value("rocket");
+  env.inputs[1].set_value("rocket");
   assert.equal(find(ui.render(), "tone-2"), undefined);
   click(ui, "material-rocket");
   click(ui, "appearance-save");
@@ -147,7 +164,7 @@ test("space rename and Sharp icon save against the clicked id without color cont
 test("cancel discards drafts without host writes or a rename", () => {
   const ui = editor({ kind: "space", id: "s1" });
   env.inputs[0].set_value("Not saved");
-  env.inputs[2].set_value("home");
+  env.inputs[1].set_value("home");
   click(ui, "material-home");
   click(ui, "appearance-cancel");
   assert.deepEqual(env.writes, []);
@@ -170,12 +187,7 @@ test("reset restores the saved icon without changing assigned shades or unrelate
   assert.deepEqual(env.commands, []);
 });
 
-test("invalid hex and a closed space do not save", () => {
-  const machine = editor({ kind: "machine", machine: "pi" });
-  env.inputs[1].set_value("#oops");
-  click(machine, "appearance-save");
-  assert.deepEqual(env.writes, []);
-  assert.deepEqual(env.closed, []);
+test("a closed space does not save or fall back to the current target", () => {
   const ui = editor({ kind: "space", id: "s1" });
   env.spaces = [];
   click(ui, "appearance-save");
@@ -201,7 +213,7 @@ test("rename remains in the space menu and worktree actions retain the same targ
   assert.deepEqual(env.opened[0].props.appearance, { kind: "space", id: "s1", tree: true });
   assert.equal(env.opened[0].mod, "spaces-status");
   click(ui, "space-action-2");
-  assert.deepEqual(env.opened[1].props, { space: "s1", action: "open" });
+  assert.deepEqual(env.opened[1].props, { view: "worktree", space: "s1", machine: null, action: "open" });
 });
 
 test("sidebar uses one live-data snapshot and does not publish unchanged preferences on every render", () => {
@@ -216,18 +228,19 @@ test("sidebar uses one live-data snapshot and does not publish unchanged prefere
   assert.equal(env.writes.length, writes);
 });
 
-test("SS14 avatar saves, reopens and Default avatar preserves its manual color", () => {
+test("character saves, reopens and Default restores its saved random character and accent", () => {
   const target = { kind: "machine", machine: "pi" };
   let ui = editor(target);
-  click(ui, "color-2");
   click(ui, "avatar-plush-ss14-shark-blue");
   click(ui, "appearance-save");
   assert.deepEqual(env.values.get(APPEARANCE_KEY).machines["remote:pi"],
-    { color: "#5b8def", avatar: { kind: "plush", id: "ss14-shark-blue" } });
+    { avatar: { kind: "plush", id: "ss14-shark-blue" } });
   ui = editor(target);
   click(ui, "avatar-auto");
   click(ui, "appearance-save");
-  assert.deepEqual(env.values.get(APPEARANCE_KEY).machines["remote:pi"], { color: "#5b8def" });
+  assert.equal(env.values.get(APPEARANCE_KEY).machines["remote:pi"], undefined);
+  const defaults = env.values.get(APPEARANCE_KEY).defaults["remote:pi"];
+  assert.equal(machineColor(env.values.get(APPEARANCE_KEY), "pi", {}), CHARACTER_ACCENTS[defaults.avatar.id]);
 });
 
 test("plush sprite sheet is clipped to the first frame, not squeezed into the tile", () => {
@@ -295,8 +308,12 @@ test("tab wheel and panel buttons retain stock commands; tab menu targets the cl
   assert.deepEqual(env.opened[0].props.chromeMenu, { id: "t2", space: "s1" });
   const menu = createPixelMenu({ ...env.opened[0].props, overlay: "popup" }, env.cx);
   click(menu, "pixel-menu-rename");
-  assert.deepEqual(env.commands.pop(), ["tab.rename", { id: "t2" }]);
-  assert.deepEqual(env.closed, ["popup"]);
+  assert.deepEqual(env.opened[1].props, { view: "rename", id: "t2" });
+  const rename = createView({ ...env.opened[1].props, overlay: "rename" }, env.cx);
+  env.inputs.at(-1).set_value("Renamed second");
+  click(rename, "rename-save");
+  assert.deepEqual(env.commands.pop(), ["tab.rename", { id: "t2", name: "Renamed second" }]);
+  assert.deepEqual(env.closed, ["popup", "rename"]);
 });
 
 test("pane buttons keep explicit pane targets and never focus/close a different pane", () => {
@@ -324,7 +341,7 @@ test("pixel space groups wrap their own sessions and keep fold/navigation behavi
   assert.ok(find(group, "session-t1"));
   click(view, "session-t1");
   assert.deepEqual(env.commands.slice(-2), [["space.select", { id: "s1" }], ["tab.select", { id: "t1" }]]);
-  find(view.render(), "space-fold-s1").events["on_mouse_down:left"]({}, env.cx);
+  click(view, "space-fold-s1");
   assert.equal(find(view.render(), "session-t1"), undefined);
 });
 
@@ -371,8 +388,271 @@ test("new pixel menu restores installed agents from cache and preserves launch a
   click(ui, "pixel-menu-missing");
   assert.deepEqual(env.commands, []);
   click(ui, "pixel-menu-pi");
-  assert.deepEqual(env.commands, [["tab.new", { name: "Pi", space: "s1", argv: ["pi", "--flag"] }]]);
+  assert.deepEqual(env.commands, [["tab.new", { space: "s1", argv: ["pi", "--flag"] }]]);
   assert.deepEqual(env.closed, ["new-popup"]);
   assert.equal(env.spawns, 1); // agent discovery only; no machine/Git pollers
   assert.equal(env.timers, 0);
+});
+
+const key = (name, modifiers = {}) => ({ key: name, modifiers });
+const text = node => typeof node === "string" ? node : (node?.kids ?? []).map(text).join(" ");
+
+test("machine plus creates in that machine's home; only right-click opens appearance", () => {
+  const view = new Spaces(); view.init({}, env.cx);
+  view.machines = [{ name: "pi", state: "connected" }];
+  const tree = view.render(), plus = find(tree, "machine-add-pi");
+  assert.equal(find(tree, "machine-appearance-remote:pi"), undefined);
+  plus.events["on_mouse_down:left"]({}, env.cx);
+  plus.events["on_mouse_up:left"]({}, env.cx);
+  plus.events.on_click({}, env.cx);
+  assert.equal(env.stops, 3);
+  assert.deepEqual(env.commands, [["space.new", { machine: "pi" }]]);
+  assert.equal(env.opened.length, 0);
+  find(tree, "machine-pi").events["on_mouse_down:right"]({}, env.cx);
+  assert.deepEqual(env.opened[0].props.appearance, { kind: "machine", machine: "pi" });
+});
+
+test("worktree button opens immediately for a non-active remote space, without selection or drag", () => {
+  const view = new Spaces(); view.init({}, env.cx);
+  const control = find(view.render(), "space-worktree-s2");
+  control.events["on_mouse_down:left"]({}, env.cx);
+  control.events["on_mouse_up:left"]({}, env.cx);
+  control.events.on_click({}, env.cx);
+  assert.equal(view.pressed, null);
+  assert.equal(env.stops, 3);
+  assert.deepEqual(env.commands, []);
+  assert.deepEqual(env.opened[0].props, { view: "worktree", space: "s2", machine: "pi", action: "new" });
+  assert.equal(env.opened[0].frame, "none");
+  const geometry = { width: env.opened[0].width, height: env.opened[0].height };
+  openWorktree("s2", "new");
+  assert.deepEqual({ width: env.opened[1].width, height: env.opened[1].height }, geometry);
+  env.spaces = env.spaces.filter(s => s.id !== "s2");
+  openWorktree("s2", "new");
+  assert.equal(env.opened.length, 2);
+});
+
+test("right-click opens the captured space/worktree menu in both sidebar modes without selecting it", () => {
+  for (const width of [44, 300]) {
+    env.layout.children[0].size.px = width;
+    env.values.set(APPEARANCE_KEY, ensureSpaceDefaults(env.values.get(APPEARANCE_KEY),
+      [{ id: "s2", machine: "pi", worktree: true }]));
+    const view = new Spaces(); view.init({}, env.cx);
+    for (const id of ["s1", "s2"]) {
+      find(view.render(), `space-${id}`).events["on_mouse_down:right"]({}, env.cx);
+      const opened = env.opened.at(-1), worktree = id === "s2";
+      assert.deepEqual(opened.props.spaceMenu, { id, checkout: worktree ? "linked" : null, tree: worktree });
+      assert.equal(opened.kind, "popup");
+      assert.ok(opened.height >= (worktree ? 5 : 4) * 32);
+      assert.equal(view.pressed, null);
+    }
+  }
+  assert.deepEqual(env.commands, []);
+});
+
+test("rail nests saved worktrees inside their parent and both inside their own machine", () => {
+  env.layout.children[0].size.px = 44;
+  env.spaces.push({ ...env.spaces[1], id: "wt", name: "Feature", active: false });
+  let state = env.values.get(APPEARANCE_KEY);
+  state = ensureSpaceDefaults(state, [{ id: "wt", machine: "pi", worktree: true, parent: "s2" }]);
+  env.values.set(APPEARANCE_KEY, state);
+  const view = new Spaces(); view.init({}, env.cx);
+  const tree = view.render(), machine = find(tree, "machine-card-pi"), group = find(machine, "rail-space-group-s2");
+  assert.ok(group);
+  assert.ok(find(group, "space-s2"));
+  assert.ok(find(find(group, "rail-worktrees-s2"), "space-wt"));
+  assert.equal(find(find(tree, "machine-card-local"), "space-wt"), undefined);
+  assert.match(find(group, "space-wt").props.tooltip, /pi → Remote → Feature/);
+  click(view, "machine-pi");
+  assert.equal(find(view.render(), "space-wt"), undefined);
+  const restarted = new Spaces(); restarted.init({}, env.cx);
+  assert.equal(find(restarted.render(), "space-wt"), undefined);
+});
+
+test("saved creation ancestry overrides flat Git grouping in both sidebar modes after restart", () => {
+  env.spaces[1].folder = "/repo";
+  env.spaces.push({ ...env.spaces[1], id: "wt-a", name: "Feature A", folder: "/trees/a", tabs: [] },
+    { ...env.spaces[1], id: "wt-b", name: "Feature B", folder: "/trees/b", tabs: [] });
+  const origin = { machine: "pi", path: "/trees/b", repo: "/repo", branch: "feature-b",
+    source: { space: "wt-a", name: "Feature A", path: "/trees/a", branch: "feature-a", commit: "a".repeat(40) } };
+  env.values.set(LINEAGE_KEY, { [checkoutKey("pi", origin.path)]: origin });
+  const view = new Spaces(); view.init({}, env.cx);
+  for (const path of ["/repo", "/trees/a", "/trees/b"]) view.git[JSON.stringify(["pi", path])] = {
+    repo: JSON.stringify(["pi", "/repo/.git"]), top: path, main: "/repo", linked: path !== "/repo", branch: "feature", name: "repo",
+  };
+  const expanded = view.render();
+  assert.match(text(find(expanded, "space-wt-b")), /From Feature A · feature-a @ aaaaaaa/);
+  assert.equal(env.values.get(APPEARANCE_KEY).spaceDefaults["wt-b"].parent, "wt-a");
+  assert.equal(env.values.get("space.colors")["wt-b"], env.values.get("space.colors").s2);
+  env.layout.children[0].size.px = 44;
+  const restarted = new Spaces(); restarted.init({}, env.cx); // Git has not answered yet.
+  const rail = restarted.render();
+  const branch = find(find(rail, "rail-space-group-wt-a"), "rail-worktrees-wt-a");
+  assert.ok(find(branch, "space-wt-b"));
+  assert.match(find(branch, "space-wt-b").props.tooltip, /pi → Remote → Feature A → Feature B/);
+});
+
+test("search reuses saved identities and never allocates or prunes colors, including offline records", () => {
+  tabsFixture();
+  env.values.get("space.colors").offline = "#abcdef";
+  env.spaces[1].tabs = [{ id: "remote-tab", name: "Shell", named: false, active: true, status: null }];
+  env.panes = [{ tab: "remote-tab", title: "Deploying", program: { key: "agent", name: "Agent", agent: true } }];
+  const before = structuredClone([...env.values]);
+  const picker = createView({ view: "picker", overlay: "find" }, env.cx);
+  env.inputs.at(-1).set_value("deploy");
+  const tree = picker.render();
+  assert.ok(find(tree, "pk-remote-tab"));
+  assert.ok(find(tree, "pk-head-s2"));
+  assert.ok(text(tree).includes("Deploying"));
+  assert.deepEqual([...env.values], before);
+  assert.deepEqual(env.writes, []);
+  click(picker, "pk-remote-tab");
+  assert.deepEqual(env.commands, [["space.select", { id: "s2" }], ["tab.select", { id: "remote-tab" }]]);
+  assert.equal(env.spawns, 1); // machine discovery only
+  assert.equal(env.timers, 0);
+});
+
+test("menu keys skip disabled items, reveal the selected row, and execute once", () => {
+  const actions = [], menu = new Menu(env.cx, () => actions.push("close")), t = env.call("theme");
+  const items = [
+    { id: "first", label: "First", action: () => actions.push("first") },
+    { id: "disabled", label: "Disabled", enabled: false, action: () => actions.push("disabled") },
+    { id: "last", label: "Last", action: () => actions.push("last") },
+  ];
+  menu.render(t, "test-menu", items).events.on_key_down(key("down"), env.cx);
+  assert.equal(env.scrolls.at(-1), 2);
+  menu.render(t, "test-menu", items).events.on_key_down(key("enter"), env.cx);
+  assert.deepEqual(actions, ["close", "last"]);
+  find(menu.render(t, "test-menu", items), "disabled").events.on_click({}, env.cx);
+  assert.deepEqual(actions, ["close", "last"]);
+  const empty = menu.render(t, "empty", []);
+  empty.events.on_key_down(key("down"), env.cx);
+  empty.events.on_key_down(key("enter"), env.cx);
+  assert.deepEqual(actions, ["close", "last"]);
+});
+
+test("shared buttons consume nested gestures and disabled keyboard actions do nothing", () => {
+  let actions = 0;
+  const t = env.call("theme"), control = button(t, "action", "Action", () => actions++);
+  control.events["on_mouse_down:left"]({}, env.cx);
+  control.events["on_mouse_up:left"]({}, env.cx);
+  control.events.on_key_down(key("enter"), env.cx);
+  assert.equal(actions, 1);
+  assert.equal(env.stops, 3);
+  const disabled = button(t, "disabled", "Disabled", () => actions++, { disabled: true });
+  disabled.events.on_click({}, env.cx);
+  disabled.events.on_key_down(key("space"), env.cx);
+  assert.equal(actions, 1);
+});
+
+test("explicitly named tabs win even when their names match the program", () => {
+  const pane = { title: "[ Fixing ] tests", program: { key: "agent", name: "Agent", agent: true } };
+  assert.equal(tabLabel({ name: "Agent", named: true }, pane), "Agent");
+  assert.equal(tabLabel({ name: "1", named: false }, pane), "[ Fixing ] tests");
+  assert.equal(tabLabel({ name: "1", named: false }, { ...pane, title: "[ ! ] Fixing tests" }), "Fixing tests");
+});
+
+test("terminal menu uses the clicked target and omits pane commands for composition terminals", () => {
+  env.panes = [{ pane: "p2", tab: "t2" }];
+  env.terminals = [{ address: "remote/child", parent: "remote/parent", labels: { "herdr.right-click": "program" } },
+    { address: "remote/parent", name: "Parent" }];
+  const menu = createView({ tab: "pane", target: { pane: "p2", terminal: "remote/child" }, overlay: "context" }, env.cx);
+  click(menu, "terminal-menu-right");
+  click(menu, "terminal-menu-mouse");
+  click(menu, "terminal-menu-park");
+  assert.deepEqual(env.commands, [
+    ["pane.split", { pane: "p2", direction: "right" }],
+    ["terminal.right_click", { terminal: "remote/child", to: "menu" }],
+    ["terminal.park", { terminal: "remote/child" }],
+  ]);
+  const block = createView({ tab: "pane", target: { pane: "block", terminal: "remote/child" }, overlay: "context" }, env.cx);
+  assert.equal(find(block.render(), "terminal-menu-right"), undefined);
+  assert.equal(find(block.render(), "terminal-menu-close"), undefined);
+  assert.equal(env.spawns, 0);
+});
+
+test("toast Copy consumes the action, and close confirmations retain their captured target", () => {
+  const toast = createView({ title: "Login", body: "pi needs login; run hc machine login pi",
+    overlay: "toast", action: { name: "space.select", args: { id: "s2" } } }, env.cx);
+  click(toast, "toast-login-copy");
+  assert.deepEqual(env.clipboard, ["hc machine login pi"]);
+  assert.deepEqual(env.commands, []);
+  assert.deepEqual(env.closed, []);
+  const confirm = createView({ view: "confirm-close", kind: "space", id: "s2", overlay: "confirm" }, env.cx);
+  env.spaces[0].active = true;
+  click(confirm, "confirm-accept");
+  assert.deepEqual(env.commands, [["space.close", { id: "s2", confirmed: true }]]);
+});
+
+test("remote worktree creation pins the clicked worktree's latest commit and saves its origin", async () => {
+  env.spaces[1].tabs = [{ id: "remote-tab" }];
+  env.panes = [{ tab: "remote-tab", cwd: "/remote/repo/subdir" }, { tab: "other-tab", cwd: "/wrong", focused: true }];
+  const calls = [];
+  let head = "a".repeat(40);
+  env.exec = async (command, args, options) => {
+    calls.push({ command, args, options });
+    if (command === "sh") return { code: 0, stdout: "/home/remote", stderr: "" };
+    if (args.includes("--show-toplevel")) return { code: 0, stdout: "/remote/repo/feature-a", stderr: "" };
+    if (args.includes("--git-common-dir")) return { code: 0, stdout: "/remote/repo/.git", stderr: "" };
+    if (args[0] === "show-ref") return { code: 1, stdout: "", stderr: "" };
+    if (args[0] === "rev-parse" && args.includes("--verify")) return { code: 0, stdout: head, stderr: "" };
+    if (args[0] === "symbolic-ref") return { code: 0, stdout: "feature-a", stderr: "" };
+    return { code: 0, stdout: "", stderr: "" };
+  };
+  const ui = createView({ view: "worktree", space: "s2", action: "new", overlay: "worktree" }, env.cx);
+  await env.jobs.shift()(env.cx);
+  head = "b".repeat(40); // The source advanced while the dialog was open.
+  env.inputs.at(-1).set_value("feature/new");
+  click(ui, "worktree-submit");
+  await env.jobs.shift()(env.cx);
+  assert.ok(calls.every(call => call.options.on === "pi"));
+  const add = calls.find(call => call.args[0] === "worktree");
+  assert.equal(add.options.cwd, "/remote/repo/feature-a");
+  assert.deepEqual(add.args, ["worktree", "add", "-b", "feature/new", "/home/remote/.herdr/worktrees/repo/feature-new", head]);
+  const origin = readLineage(env.values.get(LINEAGE_KEY))[checkoutKey("pi", "/home/remote/.herdr/worktrees/repo/feature-new")];
+  assert.deepEqual(origin.source, { space: "s2", name: "Remote", path: "/remote/repo/feature-a", branch: "feature-a", commit: head });
+  assert.deepEqual(env.commands, [["space.new", { folder: "/home/remote/.herdr/worktrees/repo/feature-new", machine: "pi" }]]);
+  assert.deepEqual(env.closed, ["worktree"]);
+});
+
+test("opening an existing branch does not invent ancestry from the clicked worktree", async () => {
+  env.exec = async (command, args) => {
+    if (command === "sh") return { code: 0, stdout: "/home/remote", stderr: "" };
+    if (args.includes("--show-toplevel")) return { code: 0, stdout: "/repo/source", stderr: "" };
+    if (args.includes("--git-common-dir")) return { code: 0, stdout: "/repo/.git", stderr: "" };
+    if (args[0] === "rev-parse") return { code: 0, stdout: "a".repeat(40), stderr: "" };
+    return { code: 0, stdout: "", stderr: "" };
+  };
+  const ui = createView({ view: "worktree", space: "s2", action: "new", overlay: "worktree" }, env.cx);
+  await env.jobs.shift()(env.cx);
+  env.inputs.at(-1).set_value("existing");
+  click(ui, "worktree-submit");
+  await env.jobs.shift()(env.cx);
+  assert.deepEqual(env.values.get(LINEAGE_KEY), {});
+  assert.equal(env.commands[0][0], "space.new");
+});
+
+test("worktree removal rechecks newly dirty state before closing the space or deleting files", async () => {
+  let dirty = false;
+  const calls = [];
+  env.exec = async (_command, args, options) => {
+    calls.push({ args, options });
+    if (args.includes("--show-toplevel")) return { code: 0, stdout: "/repo/worktree", stderr: "" };
+    if (args.includes("--git-common-dir")) return { code: 0, stdout: "/repo/main/.git", stderr: "" };
+    if (args.includes("--absolute-git-dir")) return { code: 0, stdout: "/repo/main/.git/worktrees/feature", stderr: "" };
+    if (args.includes("status")) return { code: 0, stdout: dirty ? " M file" : "", stderr: "" };
+    if (args.includes("config")) return { code: 1, stdout: "", stderr: "" };
+    return { code: 0, stdout: "", stderr: "" };
+  };
+  const ui = createView({ view: "worktree", space: "s1", action: "remove", overlay: "remove" }, env.cx);
+  await env.jobs.shift()(env.cx);
+  dirty = true;
+  click(ui, "worktree-submit");
+  await env.jobs.shift()(env.cx);
+  assert.deepEqual(env.commands, []);
+  assert.equal(calls.some(call => call.args[0] === "worktree"), false);
+  assert.match(text(ui.render()), /changed since/);
+  click(ui, "worktree-submit");
+  await env.jobs.shift()(env.cx);
+  assert.deepEqual(env.commands, [["space.close", { id: "s1", confirmed: true }]]);
+  assert.deepEqual(calls.find(call => call.args[0] === "worktree").args, ["worktree", "remove", "--force", "/repo/worktree"]);
 });

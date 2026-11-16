@@ -1,6 +1,7 @@
 {
   "place": "none",
   "title": "Spaces status",
+  "overlay": { "width": 320, "height": 240 },
   "cloned_from": {
     "name": "spaces",
     "version": "0.1.15"

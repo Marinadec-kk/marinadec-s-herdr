@@ -4,12 +4,13 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import {
   readAppearance, ensureMachineDefaults, ensureSpaceDefaults, withProfile, profileFor, assignSpaceColors,
-  normalizeColor, readAvatar, resolveColor, machineKey, machineAvatar, spaceAvatar,
+  normalizeColor, readAvatar, resolveColor, machineKey, machineAvatar, machineColor, spaceAvatar,
   PROJECT_COLORS, WORKTREE_AVATAR,
 } from "../mods/spaces-status/appearance-model.js";
 import { tonePalette } from "../mods/spaces-status/appearance-colors.js";
 import { MATERIAL_ICONS } from "../mods/spaces-status/material-catalog.js";
 import { PLUSHIES } from "../mods/spaces-status/plush-catalog.js";
+import { CHARACTER_ACCENTS } from "../mods/spaces-status/character-accents.js";
 
 const empty = () => readAppearance(null);
 const machines = [null, "small", "pi", "big"];
@@ -75,9 +76,9 @@ test("allocation reserves manual choices and reuses finite pools gracefully", ()
   assert.deepEqual(ensureMachineDefaults(readAppearance(JSON.parse(JSON.stringify(many))), []), many);
 });
 
-test("space shades inherit their machine and follow recoloring without rerolling icons or slots", () => {
+test("space shades follow the character accent without rerolling icons or slots", () => {
   const state = make(), colors = assignSpaceColors(spaces, {}, state, theme, true);
-  const next = withProfile(state, { kind: "machine", machine: "small" }, { color: "#d9649a" });
+  const next = withProfile(state, { kind: "machine", machine: "small" }, { avatar: { kind: "plush", id: "ss14-shark-blue" } });
   const changed = assignSpaceColors(spaces, colors, next, theme, true);
   for (const s of spaces) assert.notEqual(changed[s.id], colors[s.id]);
   assert.deepEqual(next.spaceDefaults, state.spaceDefaults);
@@ -95,7 +96,7 @@ test("light and dark tonal palettes are distinct, valid and readable against the
     return c[0] * .2126 + c[1] * .7152 + c[2] * .0722;
   };
   assert.equal(PROJECT_COLORS.length, 24);
-  for (const color of [...PROJECT_COLORS.map(c => resolveColor(c, theme)), "#000000", "#ffffff", "#ff0000"]) {
+  for (const color of [...PROJECT_COLORS.map(c => resolveColor(c, theme)), ...Object.values(CHARACTER_ACCENTS), "#000000", "#ffffff", "#ff0000"]) {
     for (const dark of [true, false]) {
       const palette = tonePalette(color, dark);
       assert.equal(new Set(palette).size, 12);
@@ -139,7 +140,7 @@ test("the full Material catalog retains all five styles", () => {
 test("twelve ordinary siblings use free shades before any reuse; worktrees consume no slot", () => {
   const all = Array.from({ length: 12 }, (_, i) => ({ id: `s${i}`, machine: "small" }));
   const tree = { id: "tree", machine: "small", worktree: true, parent: "s0" };
-  const state = ensureSpaceDefaults(ensureMachineDefaults(empty(), ["small"]), [tree, ...all], seeded());
+  const state = ensureSpaceDefaults(ensureMachineDefaults(empty(), ["small"], seeded()), [tree, ...all], seeded());
   assert.equal(new Set(all.map(s => state.spaceDefaults[s.id].tone)).size, 12);
   assert.deepEqual(spaceAvatar(state, "tree"), WORKTREE_AVATAR);
   const changed = withProfile(state, { kind: "space", id: "tree" },
@@ -147,11 +148,22 @@ test("twelve ordinary siblings use free shades before any reuse; worktrees consu
   assert.deepEqual(spaceAvatar(changed, "tree"), WORKTREE_AVATAR);
   const colors = assignSpaceColors([tree, ...all], {}, changed, theme, true);
   assert.equal(colors.tree, colors.s0);
-  const recolored = withProfile(changed, { kind: "machine", machine: "small" }, { color: "#ef6f6c" });
+  const recolored = withProfile(changed, { kind: "machine", machine: "small" }, { avatar: { kind: "plush", id: "ss14-shark-blue" } });
   const nextColors = assignSpaceColors([tree], colors, recolored, theme, true);
   assert.equal(nextColors.tree, nextColors.s0);
   assert.notEqual(nextColors.tree, colors.tree);
   assert.deepEqual(ensureSpaceDefaults(state, [tree, ...all].reverse(), () => { throw Error("rerolled"); }), state);
+});
+
+test("every character has an accent; legacy manual colors never override its current color", () => {
+  for (const plush of PLUSHIES) {
+    const state = withProfile(make(), { kind: "machine", machine: "small" },
+      { color: "#ff0000", avatar: { kind: "plush", id: plush.id } });
+    const color = machineColor(state, "small", theme);
+    assert.match(color, /^#[a-f0-9]{6}$/);
+    assert.equal(color, CHARACTER_ACCENTS[plush.id]);
+    assert.equal(machineColor(readAppearance(JSON.parse(JSON.stringify(state))), "small", theme), color);
+  }
 });
 
 test("late worktree discovery releases its shade and retains parent while Git is unavailable", () => {

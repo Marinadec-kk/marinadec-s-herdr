@@ -4,6 +4,7 @@ import { PLUSHIES } from "./plush-catalog.js";
 import type { PlushId } from "./plush-catalog.js";
 import { MATERIAL_ICONS } from "./material-catalog.js";
 import { TONE_COUNT, tonePalette } from "./appearance-colors.js";
+import { CHARACTER_ACCENTS } from "./character-accents.js";
 
 export type Theme = Record<string, Color>;
 export const UI_FONT = "Liberation Sans";
@@ -29,6 +30,8 @@ export type MaterialAvatar = { kind: "material"; family: "sharp"; name: string }
 export type AvatarChoice = PlushAvatar | MaterialAvatar;
 export const WORKTREE_AVATAR: MaterialAvatar = { kind: "material", family: "sharp", name: "account_tree" };
 export interface AppearanceProfile { color?: string; avatar?: AvatarChoice }
+// Legacy color fields remain readable for existing v1/v2 preferences.
+// Current machine colors are always derived from the chosen character.
 export interface MachineDefault { color: string; avatar?: PlushAvatar }
 export interface SpaceDefault { machine: string; tone: number; avatar: MaterialAvatar; worktree?: boolean; parent?: string }
 export interface AppearanceState {
@@ -120,24 +123,18 @@ function allocate<T extends string | number>(pool: readonly T[], used: T[], rand
 export function ensureMachineDefaults(state: AppearanceState, machines: readonly (string | null)[], random = Math.random): AppearanceState {
   const defaults = { ...state.defaults };
   const keys = [...new Set([...Object.keys(defaults), ...Object.keys(state.machines), ...machines.map(machineKey)])].sort();
-  const colors = keys.flatMap(key => {
-    const color = state.machines[key]?.color ?? defaults[key]?.color;
-    return color ? [color] : [];
-  });
   const avatars = keys.flatMap(key => {
     const avatar = state.machines[key]?.avatar ?? defaults[key]?.avatar;
     return avatar?.kind === "plush" ? [avatar.id] : [];
   });
   for (const key of keys) {
-    let color = defaults[key]?.color;
-    if (!color) { color = allocate(PROJECT_COLORS, colors, random); colors.push(color); }
     let avatar = defaults[key]?.avatar;
     if (!avatar) {
       const manual = state.machines[key]?.avatar;
       const id = manual?.kind === "plush" ? manual.id : allocate(PLUSHIES.map(p => p.id), avatars, random);
       avatar = { kind: "plush", id }; avatars.push(id);
     }
-    defaults[key] = { color, avatar };
+    defaults[key] = { color: defaults[key]?.color ?? CHARACTER_ACCENTS[avatar.id], avatar };
   }
   return { ...state, defaults };
 }
@@ -185,8 +182,8 @@ export function resolveColor(value: string | undefined, theme: Theme): Color {
 }
 
 export function machineColor(state: AppearanceState, machine: string | null, theme: Theme): Color {
-  const key = machineKey(machine);
-  return resolveColor(state.machines[key]?.color ?? state.defaults[key]?.color, theme);
+  const avatar = machineAvatar(state, machine);
+  return avatar ? CHARACTER_ACCENTS[avatar.id] : resolveColor(state.defaults[machineKey(machine)]?.color, theme);
 }
 
 export function machineAvatar(state: AppearanceState, machine: string | null): PlushAvatar | undefined {

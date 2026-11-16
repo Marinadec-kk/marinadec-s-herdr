@@ -1,6 +1,7 @@
 import { PLUSHIES } from "./plush-catalog.js";
 import { MATERIAL_ICONS } from "./material-catalog.js";
 import { TONE_COUNT, tonePalette } from "./appearance-colors.js";
+import { CHARACTER_ACCENTS } from "./character-accents.js";
 export const UI_FONT = "Liberation Sans";
 export const UI_FONT_SIZE = 14;
 export const APPEARANCE_KEY = "spaces-status.appearance";
@@ -93,20 +94,11 @@ function allocate(pool, used, random) {
 export function ensureMachineDefaults(state, machines, random = Math.random) {
     const defaults = { ...state.defaults };
     const keys = [...new Set([...Object.keys(defaults), ...Object.keys(state.machines), ...machines.map(machineKey)])].sort();
-    const colors = keys.flatMap(key => {
-        const color = state.machines[key]?.color ?? defaults[key]?.color;
-        return color ? [color] : [];
-    });
     const avatars = keys.flatMap(key => {
         const avatar = state.machines[key]?.avatar ?? defaults[key]?.avatar;
         return avatar?.kind === "plush" ? [avatar.id] : [];
     });
     for (const key of keys) {
-        let color = defaults[key]?.color;
-        if (!color) {
-            color = allocate(PROJECT_COLORS, colors, random);
-            colors.push(color);
-        }
         let avatar = defaults[key]?.avatar;
         if (!avatar) {
             const manual = state.machines[key]?.avatar;
@@ -114,7 +106,7 @@ export function ensureMachineDefaults(state, machines, random = Math.random) {
             avatar = { kind: "plush", id };
             avatars.push(id);
         }
-        defaults[key] = { color, avatar };
+        defaults[key] = { color: defaults[key]?.color ?? CHARACTER_ACCENTS[avatar.id], avatar };
     }
     return { ...state, defaults };
 }
@@ -163,8 +155,8 @@ export function resolveColor(value, theme) {
     return color.startsWith("#") ? color : MARK[color] ?? theme[color] ?? theme.ansi6;
 }
 export function machineColor(state, machine, theme) {
-    const key = machineKey(machine);
-    return resolveColor(state.machines[key]?.color ?? state.defaults[key]?.color, theme);
+    const avatar = machineAvatar(state, machine);
+    return avatar ? CHARACTER_ACCENTS[avatar.id] : resolveColor(state.defaults[machineKey(machine)]?.color, theme);
 }
 export function machineAvatar(state, machine) {
     const key = machineKey(machine), avatar = state.machines[key]?.avatar;
