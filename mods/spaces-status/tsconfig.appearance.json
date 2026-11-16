@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "noEmit": true
+  },
+  "include": ["appearance-*.ts", "pixel-*.ts", "*-catalog.ts", "types/*.d.ts"]
+}

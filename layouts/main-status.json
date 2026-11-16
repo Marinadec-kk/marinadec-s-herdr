@@ -14,7 +14,8 @@
           "id": "brand",
           "type": "block",
           "content": {
-            "mod": "workspace-chrome"
+            "mod": "spaces-status",
+            "props": { "chrome": "brand" }
           },
           "size": {
             "px": 46
@@ -36,9 +37,9 @@
           "id": "sidebar-footer",
           "type": "block",
           "content": {
-            "mod": "workspace-chrome",
+            "mod": "spaces-status",
             "props": {
-              "footer": true
+              "chrome": "footer"
             }
           },
           "size": {
@@ -62,7 +63,8 @@
           "id": "tabs",
           "type": "block",
           "content": {
-            "mod": "tabs"
+            "mod": "spaces-status",
+            "props": { "chrome": "tabs" }
           },
           "size": {
             "px": 42
@@ -81,22 +83,23 @@
                 "pane": {
                   "header": {
                     "content": {
-                      "mod": "pane"
+                      "mod": "spaces-status",
+                      "props": { "chrome": "pane" }
                     },
                     "reveal": "always",
-                    "height": 30,
+                    "height": 32,
                     "position": "top"
                   },
                   "background": "background",
                   "border": {
-                    "width": 1,
+                    "width": 2,
                     "color": "border"
                   },
                   "focus": {
                     "width": 1,
                     "color": "accent"
                   },
-                  "radius": 10,
+                  "radius": 0,
                   "gap": 8,
                   "lone": true
                 }
@@ -143,7 +146,8 @@
           "id": "status",
           "type": "block",
           "content": {
-            "mod": "workspace-status"
+            "mod": "spaces-status",
+            "props": { "chrome": "status" }
           },
           "size": {
             "px": 28

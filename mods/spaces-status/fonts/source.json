@@ -1,0 +1,21 @@
+{
+  "repository": "google/material-design-icons",
+  "commit": "10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7",
+  "files": {
+    "LICENSE": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+    "MaterialIcons-Regular.codepoints": "530f25bf7b2d71c8e1da9476d53f9a9bb6b7e187bff69bb7128bb679b8194894",
+    "MaterialIcons-Regular.ttf": "ef149f08bdd2ff09a4e2c8573476b7b0f3fbb15b623954ade59899e7175bedda",
+    "MaterialIconsOutlined-Regular.codepoints": "c57e7279a7ef29925cd98e538c618a037a42b43120576f4660a6732c7a5a4d4a",
+    "MaterialIconsOutlined-Regular.otf": "b63fa9edd75e3c20328e04ad31dcc38ce76411f3f9ea1a1ff87f49e5ba874b05",
+    "MaterialIconsRound-Regular.codepoints": "534fc87caafe6c7529a390fbe5b669c158d560caa5e9358c8e49054b817603d8",
+    "MaterialIconsRound-Regular.otf": "bad85e5454b6288104ce03806c37323bcd8f145e3094e727860173ac8c91062e",
+    "MaterialIconsSharp-Regular.codepoints": "534fc87caafe6c7529a390fbe5b669c158d560caa5e9358c8e49054b817603d8",
+    "MaterialIconsSharp-Regular.otf": "095a95043a8574c90770ecdc0af53f8b8b5043a816320107e55e2d237d8ff9de",
+    "MaterialIconsTwoTone-Regular.codepoints": "94dec6e86fb1263300bd7dbd0af2b55c9cecd1cfdfcf19df0816db8f303ba26e",
+    "MaterialIconsTwoTone-Regular.otf": "03ccf13774af5b5cbbad641dfa33038d4e9f4b7979eedc2c0a15f06bf9eb33cd"
+  },
+  "metadata": {
+    "url": "https://fonts.google.com/metadata/icons",
+    "sha256": "c832219ef24547b15d9b39e6bc5c17b71843760dc0a06d856ed5337e6612f4c2"
+  }
+}
