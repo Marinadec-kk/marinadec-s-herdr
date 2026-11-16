@@ -33,24 +33,12 @@ import { tabLabel, tabLead, machineLabel, spaceFolder } from "./presentation/lab
 import { STATUS_RANK as RANK, statusTip } from "./presentation/status.js";
 import { openWorktree, openPicker, openTabRename, newSpaceInHome } from "./overlays.js";
 import { createView } from "./views/index.js";
-
-// A terminal as `terminals()` describes it, as far as this mod reads it.
-interface TerminalInfo {
-  address: string;
-  parent?: string | null;
-  state?: string;
-}
-
-// A machine as `hc machine ls --json` describes it.
-interface MachineInfo {
-  name: string;
-  state?: string;
-  why?: string;
-  via?: string;
-  target?: string;
-  session?: string;
-  temporary?: boolean;
-}
+import { agentTree } from "./data/agent-tree.js";
+import type { TerminalNode as TerminalInfo } from "./data/agent-tree.js";
+import { loadMachines, machineError } from "./data/machines.js";
+import type { MachineInfo } from "./data/machines.js";
+import { readRepository } from "./data/git.js";
+import { pathKey } from "./data/paths.js";
 
 // One place's git: branch, ahead/behind, its repo.
 interface GitInfo {
@@ -145,21 +133,14 @@ interface Ordering {
 // The sidebar's rail goes by its width, not a flag: dragging its edge narrows it too.
 const sidebarWidth = () => findNode(layout() as LayoutNode, "sidebar")?.size?.px ?? UI.sidebar;
 
-// Where a space is now: its first terminal's live folder, else where it was made.
-// `ps`: panes(), read once by the caller (each read copies every pane).
-function place(s: SpaceInfo, ps: PaneInfo[]): string {
-  const tabs = new Set((s.tabs ?? []).map((c) => c.id));
-  return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
-}
 const RAIL_CELL = UI.railCell;
 const railCell = (el: Element) => h_flex().flex_none().justify_center().child(el);
 const ROW_INSET = UI.inset;
-const where = (s: SpaceInfo, ps: PaneInfo[]) => JSON.stringify([s.machine ?? null, place(s, ps)]);
+const where = (s: SpaceInfo, ps: PaneInfo[]) => pathKey(s.machine ?? null, spaceFolder(s, ps));
 // The pair every where() key carries — [machine, folder] — typed, so the
 // destructures read as what they are instead of `any`. A repo key
 // (`GitInfo.repo`) is the same pair for the repo folder.
 const parseWhere = (key: string): [string | null, string] => JSON.parse(key);
-const base = (path: string) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
@@ -311,7 +292,7 @@ export default class Spaces extends View {
 
   refreshMachines(cx: Context) {
     cx.spawn(async cx => {
-      try { const r = await hc(["machine", "ls", "--json"]); if (r.code === 0) this.machines = (JSON.parse(r.stdout).machines ?? []).filter((m: MachineInfo) => !m.temporary); } catch {}
+      try { this.machines = await loadMachines(); } catch {}
       cx.notify();
     });
   }
@@ -332,11 +313,7 @@ export default class Spaces extends View {
       try {
         const ask = async (args: string[]) => {
           const r = await hc([...args, "--json"]);
-          if (r.code !== 0) {
-            let error;
-            try { error = JSON.parse(r.stdout || r.stderr).error?.message; } catch {}
-            throw new Error(error || r.stderr || r.stdout || "Couldn't connect.");
-          }
+          if (r.code !== 0) throw new Error(machineError(r).message);
         };
         if (!state.removed) {
           await ask(["machine", "rm", name]);
@@ -387,30 +364,22 @@ export default class Spaces extends View {
     this.checked[key] = Date.now();
     this.unsure.delete(key);
     try {
-      // Ref-only reads avoid scanning the worktree or waking its index watch.
-      // Two reads: a folder name may itself contain a newline.
-      const [r, common] = await Promise.all([
-        exec("git", ["rev-parse", "--path-format=absolute", "--show-toplevel"], { cwd, on }),
-        exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd, on }),
-      ]);
-      if (r.code !== 0 || common.code !== 0) {
+      const { repo, error } = await readRepository(cwd, on);
+      if (!repo) {
         // Only git's own "no" is remembered as no repo; anything else is asked again.
-        if (!/not a git repository/i.test(r.code !== 0 ? r.stderr : common.stderr)) this.unsure.add(key);
+        if (!/not a git repository/i.test(error)) this.unsure.add(key);
         this.git[key] = null;
         return;
       }
-      // The repo's own .git folder names it; a worktree's top differs from it.
-      const top = r.stdout.replace(/\n$/, ""), repo = common.stdout.replace(/\n$/, "");
       const [branch, counts] = await Promise.all([
         exec("git", ["symbolic-ref", "-q", "HEAD"], { cwd, on }),
         exec("git", ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], { cwd, on }),
       ]);
-      const name = repo.endsWith("/.git") ? base(repo.slice(0, -5)) : base(repo).replace(/\.git$/, "");
       const [ahead, behind] = counts.code === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : [0, 0];
-      const info: GitInfo = { name, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : "(detached)", ahead, behind,
-        repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git`, top, main: repo.endsWith("/.git") ? repo.slice(0, -5) : repo };
+      const info: GitInfo = { ...repo, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : "(detached)", ahead, behind,
+        repo: pathKey(on, repo.common) };
       this.git[key] = info;
-      if (!on) this.watch(repo, cx);
+      if (!on) this.watch(repo.common, cx);
     } catch {
       // Couldn't ask (the machine is away): keep what it showed, look again later.
       this.git[key] ??= null;
@@ -425,7 +394,7 @@ export default class Spaces extends View {
       try {
         while (this.watching.has(repo)) {
           await watchFolder(repo);
-          const mine = JSON.stringify([null, repo]);
+          const mine = pathKey(null, repo);
           if (this.watching.has(repo)) this.refreshGit(Object.keys(this.git).filter((k) => this.git[k]?.repo === mine), cx);
         }
       } catch { this.watching.delete(repo); }
@@ -479,24 +448,11 @@ export default class Spaces extends View {
 
   // The tabs with agents, per space: harnesses, tab status, a label, and how
   // many sub-agents hang under them. A tab is one row; plain shells get none.
-  sessions(rows: Row[], bySpace: Map<string, AgentInfo[]>, allTerminals: TerminalInfo[], subagents: Set<string>, ps: PaneInfo[]): Map<string, Session[]> {
-    const kids = new Map<string, TerminalInfo[]>();
-    for (const k of allTerminals) {
-      if (!k.parent) continue;
-      if (!kids.has(k.parent)) kids.set(k.parent, []);
-      kids.get(k.parent).push(k);
-    }
-    const below = (address: string): number => {
-      let n = 0;
-      for (const k of kids.get(address) ?? []) {
-        if (k.state !== "live") continue;
-        n += 1 + below(k.address);
-      }
-      return n;
-    };
+  sessions(rows: Row[], bySpace: Map<string, AgentInfo[]>, allTerminals: TerminalInfo[], ps: PaneInfo[]): Map<string, Session[]> {
+    const tree = agentTree(allTerminals);
     const out = new Map<string, Session[]>();
     for (const { w } of rows) {
-      const mine = (bySpace.get(w.id) ?? []).filter((a) => !subagents.has(a.address));
+      const mine = (bySpace.get(w.id) ?? []).filter((a) => !tree.subagents.has(a.address));
       const list: Session[] = [];
       for (const tab of w.tabs ?? []) {
         const agents = mine.filter((a) => a.tab === tab.id);
@@ -510,7 +466,7 @@ export default class Spaces extends View {
           status,
           tip: statusTip(status, agents),
           label: tabLabel(tab, tabLead(tab.id, ps, agents)),
-          subs: agents.reduce((n, a) => n + below(a.address), 0),
+          subs: tree.countDescendants(agents.map(a => a.address)),
         });
       }
       // Two unnamed tabs of the same harness read the same; number them.
@@ -531,8 +487,7 @@ export default class Spaces extends View {
       if (!bySpace.has(a.space)) bySpace.set(a.space, []);
       bySpace.get(a.space).push(a);
     }
-    const subagents = new Set(allTerminals.filter((k) => k.parent).map((k) => k.address));
-    const sessions = this.sessions(rows, bySpace, allTerminals, subagents, ps);
+    const sessions = this.sessions(rows, bySpace, allTerminals, ps);
     const infos = new Map(rows.map((r): [string, SpaceFacts] => [r.w.id, spaceInfo(r.w, bySpace.get(r.w.id) ?? [])]));
     // What every space row needs, read once here instead of once per row.
     const ctx: RowCtx = {

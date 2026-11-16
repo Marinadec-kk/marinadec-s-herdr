@@ -1,23 +1,23 @@
 // Adapted from Herdr 0.1.16 worktree (Apache-2.0; see LICENSE-APACHE).
-import { exec, readTextFile, appHome } from "herdr";
+import { readTextFile, appHome } from "herdr";
+import { git } from "../data/git.js";
+import type { Repository } from "../data/git.js";
+import { normalizePath } from "../data/paths.js";
+export { git, repoOf } from "../data/git.js";
+export type { Repository } from "../data/git.js";
 
-export interface Repository { top: string; main: string; name: string; linked: boolean }
 export interface Checkout { path: string; branch: string | null; main: boolean; at: number }
 export interface Head { branch: string; commit: string }
 interface Submodule { name: string; dir: string; pinned: string }
 
-export async function git(cwd: string, args: string[], on: string | null, timeout?: number) {
-  const r = await exec("git", args, { cwd, on, ...(timeout === undefined ? {} : { timeout }) });
-  return { ok: r.code === 0, out: (r.stdout ?? "").trim(), err: (r.stderr || r.stdout || "").trim() };
-}
 export async function worktreeRoot(userHome: string): Promise<string> {
   const raw = await readTextFile(`${appHome()}/settings.json`);
   const directory: unknown = (raw === null ? {} : JSON.parse(raw))?.worktrees?.directory ?? "~/.herdr/worktrees";
   if (typeof directory !== "string" || !directory.trim()) throw new Error("worktrees.directory must be a non-empty path.");
-  let path = directory.replace(/\\/g, "/");
-  if (path === "~" || path.startsWith("~/")) path = userHome.replace(/\\/g, "/").replace(/\/$/, "") + path.slice(1);
+  let path = normalizePath(directory);
+  if (path === "~" || path.startsWith("~/")) path = normalizePath(userHome).replace(/\/$/, "") + path.slice(1);
   if (!path.startsWith("/") && !/^[A-Za-z]:\//.test(path)) throw new Error("worktrees.directory must be an absolute path or start with ~/.");
-  return path.replace(/\/+$/, "");
+  return normalizePath(path);
 }
 export function branchSlug(branch: string): string {
   const normalized = branch.normalize("NFC");
@@ -27,13 +27,6 @@ export function branchSlug(branch: string): string {
   for (const char of normalized) hash = Math.imul(hash ^ char.codePointAt(0)!, 16777619);
   return `branch-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
-export async function repoOf(folder: string, on: string | null): Promise<Repository | null> {
-  const top = await git(folder, ["rev-parse", "--show-toplevel"], on);
-  const common = await git(folder, ["rev-parse", "--path-format=absolute", "--git-common-dir"], on);
-  if (!top.ok || !common.ok) return null;
-  const main = common.out.endsWith("/.git") ? common.out.slice(0, -5) : common.out;
-  return { top: top.out, main, name: main.split("/").pop() ?? "repository", linked: main !== top.out };
-}
 export async function headOf(folder: string, on: string | null): Promise<Head> {
   const head = await git(folder, ["rev-parse", "--verify", "HEAD"], on);
   if (!head.ok || !/^[a-f0-9]{40,64}$/i.test(head.out)) throw new Error(head.err || "This checkout has no commit to branch from.");
@@ -41,13 +34,13 @@ export async function headOf(folder: string, on: string | null): Promise<Head> {
   return { commit: head.out, branch: branch.ok ? branch.out : "" };
 }
 export async function checkouts(repo: Repository, on: string | null): Promise<Checkout[]> {
-  const list = await git(repo.main, ["worktree", "list", "--porcelain"], on);
+  const list = await git(repo.main, ["worktree", "list", "--porcelain", "-z"], on);
   if (!list.ok) throw new Error(list.err || "Could not list worktrees.");
   const refs = await git(repo.main, ["for-each-ref", "--format=%(refname:short)%09%(committerdate:unix)", "refs/heads"], on);
   const when = new Map(refs.out.split("\n").map(line => line.split("\t")).map(([b, at]) => [b, Number(at) || 0]));
   const out: Checkout[] = [];
-  for (const block of list.out.split(/\n\n+/)) {
-    const lines = block.split("\n"), path = lines.find(line => line.startsWith("worktree "))?.slice(9);
+  for (const block of list.stdout.split("\0\0")) {
+    const lines = block.split("\0"), path = lines.find(line => line.startsWith("worktree "))?.slice(9);
     if (!path || lines.some(line => line === "bare" || line.startsWith("prunable"))) continue;
     const branch = lines.find(line => line.startsWith("branch "))?.slice(7).replace(/^refs\/heads\//, "") ?? null;
     out.push({ path, branch, main: out.length === 0, at: branch ? when.get(branch) ?? 0 : 0 });

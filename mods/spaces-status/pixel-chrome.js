@@ -7,10 +7,10 @@ import { record } from "./appearance-model.js";
 import { pixelButton, pixelIcon, pixelStatus, programIcon } from "./pixel-ui.js";
 import { actionRow, button } from "./ui/controls.js";
 import { surface } from "./ui/surfaces.js";
-import { UI, menuHeight } from "./ui/tokens.js";
+import { UI } from "./ui/tokens.js";
 import { machineLabel, shortPath, tabLabel } from "./presentation/labels.js";
 import { statusCounts } from "./presentation/status.js";
-import { openSurface, openPicker, openTabRename, closeTab, openMachineAdd, newSpaceInHome } from "./overlays.js";
+import { openSurface, openPicker, openTabMenu, openTabRename, closeTab, openMachineAdd, newSpaceInHome } from "./overlays.js";
 export { tabLabel } from "./presentation/labels.js";
 export function createPixelChrome(raw) {
     const role = record({ ...record(raw), ...record(props()) }).chrome;
@@ -183,7 +183,7 @@ class PixelTabs {
             })
                 .on_mouse_down("right", (_event, cx) => {
                 cx.stop_propagation();
-                openSurface({ chromeMenu: { id: tab.id, space: space?.id } }, { kind: "popup", width: 250, height: menuHeight(3) });
+                openTabMenu(tab.id, space?.id);
             })
                 .children(pic ? [pic] : [])
                 .child(div().max_w(240).truncate().tooltip(label).child(`${label}${tab.zoomed ? " [Z]" : ""}`))

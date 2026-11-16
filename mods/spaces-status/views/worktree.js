@@ -2,11 +2,13 @@
 import { div } from "gpui-kit";
 import { v_flex, InputState, ScrollHandle } from "gpui-base";
 import { closeOverlay, theme, spaces, panes, exec, home, run, shared, setShared } from "herdr";
-import { dialog, dialogHeader, dialogActions, scrollBody } from "../ui/surfaces.js";
+import { dialogFrame, dialogActions, scrollBody } from "../ui/surfaces.js";
 import { actionRow, button, textInput, secondary } from "../ui/controls.js";
 import { shortPath, spaceFolder } from "../presentation/labels.js";
 import { git, repoOf, headOf, checkouts, branchSlug, worktreeRoot, removalState } from "./worktree-git.js";
 import { LINEAGE_KEY, checkoutKey, readLineage, sourceLabel } from "../worktree-lineage.js";
+import { normalizePath, joinPath, pathWithin } from "../data/paths.js";
+import { newSpaceAt } from "../overlays.js";
 export class Worktree {
     constructor(space, action, overlay, cx) {
         this.space = space;
@@ -52,7 +54,7 @@ export class Worktree {
                         result = await exec("powershell.exe", ["-NoProfile", "-Command", "[Console]::Write($HOME)"], { on: this.on });
                     if (result.code !== 0 || !result.stdout.trim())
                         throw new Error("Could not find the remote home folder.");
-                    this.userHome = result.stdout.trim().replace(/\\/g, "/");
+                    this.userHome = normalizePath(result.stdout);
                 }
                 if (action === "new")
                     this.root = await worktreeRoot(this.userHome);
@@ -84,18 +86,18 @@ export class Worktree {
     open(checkout) {
         if (!checkout)
             return;
-        const ps = panes(), inside = (path, dir) => path === dir || path.startsWith(dir + "/");
+        const ps = panes();
         const existing = spaces().find(space => {
             if (space.machine !== this.on)
                 return false;
-            const path = spaceFolder(space, ps).replace(/\\/g, "/");
-            return inside(path, checkout.path) && !this.list.some(c => c.path.length > checkout.path.length && inside(path, c.path));
+            const path = spaceFolder(space, ps);
+            return pathWithin(path, checkout.path) && !this.list.some(c => c.path.length > checkout.path.length && pathWithin(path, c.path));
         });
         closeOverlay(this.overlay);
         if (existing)
             run("space.select", { id: existing.id });
         else
-            run("space.new", { folder: checkout.path, machine: this.on ?? "" });
+            newSpaceAt(this.on, checkout.path);
     }
     go(cx) {
         const repo = this.repo;
@@ -130,7 +132,7 @@ export class Worktree {
                         throw new Error(removed.err || "git worktree remove failed.");
                 }
                 else {
-                    const branch = this.text.trim(), path = `${this.root}/${repo.name}/${branchSlug(branch)}`;
+                    const branch = this.text.trim(), path = joinPath(this.root, `${repo.name}/${branchSlug(branch)}`);
                     const exists = (await git(repo.main, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`], this.on)).ok;
                     // Pin the exact source commit, even if its branch moves during creation.
                     const head = exists ? undefined : await headOf(repo.top, this.on);
@@ -146,7 +148,7 @@ export class Worktree {
                     else
                         delete lineage[key]; // Opening an existing branch does not establish branch ancestry.
                     setShared(LINEAGE_KEY, lineage);
-                    run("space.new", { folder: path, machine: this.on ?? "" });
+                    newSpaceAt(this.on, path);
                 }
                 closeOverlay(this.overlay);
             }
@@ -163,11 +165,8 @@ export class Worktree {
         this.at = Math.min(this.at, Math.max(0, rows.length - 1));
         const verb = this.action === "new" ? "Create" : this.action === "remove" ? "Remove" : "Open";
         const title = `${this.action === "new" ? "New" : verb} worktree${repo ? ` · ${repo.name}` : ""}`;
-        return dialog(t, "worktree").track_focus(this.handle)
-            .on_key_down((event, cx) => {
-            if (event.key === "escape")
-                close();
-            else if (this.action === "open" && (event.key === "up" || event.key === "down")) {
+        return dialogFrame(t, "worktree", title, this.handle, close, "worktree-close", (event, cx) => {
+            if (this.action === "open" && (event.key === "up" || event.key === "down")) {
                 if (rows.length)
                     this.at = (this.at + (event.key === "down" ? 1 : rows.length - 1)) % rows.length;
                 this.listScroll.scroll_to_item(this.at);
@@ -179,7 +178,6 @@ export class Worktree {
             cx.stop_propagation();
             cx.notify();
         })
-            .child(dialogHeader(t, title, close, "worktree-close"))
             .child(scrollBody("worktree-body", this.scroll)
             .when(repo === undefined, el => el.child(secondary(t, "Reading repository…")))
             .when(repo === null && !this.error, el => el.child(secondary(t, `${shortPath(this.folder, this.userHome) || "This folder"} is not in a Git repository.`)))

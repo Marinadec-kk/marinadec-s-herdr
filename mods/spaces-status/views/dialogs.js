@@ -2,7 +2,7 @@ import { div } from "gpui-kit";
 import { InputState } from "gpui-base";
 import { closeOverlay, run, spaces, theme } from "herdr";
 import { button, textInput, secondary } from "../ui/controls.js";
-import { dialog, dialogHeader, dialogActions } from "../ui/surfaces.js";
+import { dialogFrame, dialogFocus, dialogError, dialogActions } from "../ui/surfaces.js";
 export class RenameTab {
     constructor(id, overlay, cx) {
         this.id = id;
@@ -13,9 +13,7 @@ export class RenameTab {
         this.input = InputState.new({ value, placeholder: "Automatic name" });
         this.input.set_selected_range({ start: 0, end: value.length });
         this.input.on("submit", (_e, cx) => this.save(cx));
-        this.handle = cx.focus_handle();
-        this.handle.focus();
-        this.input.focus();
+        this.handle = dialogFocus(cx, this.input);
     }
     save(cx) {
         if (!spaces().some(s => s.tabs.some(t => t.id === this.id))) {
@@ -28,14 +26,9 @@ export class RenameTab {
     }
     render() {
         const t = theme(), close = () => closeOverlay(this.overlay);
-        return dialog(t, "rename-tab").track_focus(this.handle)
-            .on_key_down((event, cx) => { if (event.key === "escape") {
-            cx.stop_propagation();
-            close();
-        } })
-            .child(dialogHeader(t, "Rename tab", close, "rename-close"))
+        return dialogFrame(t, "rename-tab", "Rename tab", this.handle, close, "rename-close")
             .child(textInput(t, this.input))
-            .when(Boolean(this.error), el => el.child(secondary(t, this.error).text_color(t.blocked)))
+            .when(Boolean(this.error), el => el.child(dialogError(t, this.error)))
             .child(div().flex_1())
             .child(dialogActions().child(button(t, "rename-cancel", "Cancel", close))
             .child(button(t, "rename-save", "Save", cx => this.save(cx), { selected: true })));
@@ -46,8 +39,7 @@ export class ConfirmClose {
         this.kind = kind;
         this.id = id;
         this.overlay = overlay;
-        this.handle = cx.focus_handle();
-        this.handle.focus();
+        this.handle = dialogFocus(cx);
     }
     render() {
         const t = theme(), all = spaces();
@@ -58,17 +50,13 @@ export class ConfirmClose {
                 run(`${this.kind}.close`, { id: this.id, confirmed: true });
             close();
         };
-        return dialog(t, "confirm-close").track_focus(this.handle)
-            .on_key_down((event, cx) => {
-            if (event.key === "escape")
-                close();
-            else if (event.key === "enter" && !event.is_held)
+        return dialogFrame(t, "confirm-close", `Close ${this.kind}?`, this.handle, close, "confirm-dismiss", (event, cx) => {
+            if (event.key === "enter" && !event.is_held)
                 confirm();
             else
                 return;
             cx.stop_propagation();
         })
-            .child(dialogHeader(t, `Close ${this.kind}?`, close, "confirm-dismiss"))
             .child(div().child(target ? `Close “${target.name}” and stop its terminals?` : "This item is no longer available."))
             .when(this.kind === "tab", el => el.child(secondary(t, "Closing the last tab also closes its space.")))
             .child(div().flex_1())

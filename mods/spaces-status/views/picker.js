@@ -1,16 +1,18 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex, InputState, ScrollHandle } from "gpui-base";
-import { agents, spaces, panes, terminals, hc, theme, shared, settings, closeOverlay, run } from "herdr";
-import { APPEARANCE_KEY, readAppearance, record } from "../appearance-model.js";
+import { agents, spaces, panes, terminals, theme, shared, settings, closeOverlay, run } from "herdr";
+import { APPEARANCE_KEY, readAppearance } from "../appearance-model.js";
 import { renderAvatar } from "../appearance-avatar.js";
 import { identitySnapshot } from "../presentation/identity.js";
 import { machineLabel, tabLabel, tabLead, spaceFolder } from "../presentation/labels.js";
 import { STATUS_RANK, statusWord } from "../presentation/status.js";
-import { dialog, dialogHeader } from "../ui/surfaces.js";
+import { dialogFrame, dialogFocus } from "../ui/surfaces.js";
 import { actionRow, textInput, shortcut } from "../ui/controls.js";
 import { entityRow, rowEnd } from "../ui/rows.js";
 import { pixelIcon, pixelStatus, programIcon } from "../pixel-ui.js";
 import { closeTab, newSpaceInHome } from "../overlays.js";
+import { loadMachines } from "../data/machines.js";
+import { agentTree } from "../data/agent-tree.js";
 export class Picker {
     constructor(overlay, cx) {
         this.overlay = overlay;
@@ -20,9 +22,7 @@ export class Picker {
         this.earlier = false;
         this.remotes = [];
         this.reveal = true;
-        this.handle = cx.focus_handle();
-        this.handle.focus();
-        this.input.focus();
+        this.handle = dialogFocus(cx, this.input);
         this.input.on("change", (_e, cx) => {
             this.query = this.input.value().trim().toLowerCase();
             this.selected = undefined;
@@ -32,36 +32,18 @@ export class Picker {
         this.input.on("submit", (_e, cx) => this.choose(this.rows().find(r => r.id === this.selected), cx));
         cx.spawn(async (cx) => {
             try {
-                const result = await hc(["machine", "ls", "--json"]);
-                const list = record(JSON.parse(result.stdout)).machines;
-                if (result.code === 0 && Array.isArray(list))
-                    this.remotes = list.map(record)
-                        .filter(m => m.state === "connected" && !m.temporary && typeof m.name === "string")
-                        .map(m => m.name);
+                this.remotes = (await loadMachines()).filter(m => m.state === "connected").map(m => m.name);
             }
             catch { /* Existing spaces still provide navigation when discovery is unavailable. */ }
             cx.notify();
         });
     }
     rows() {
-        const all = agents(), ps = panes(), live = terminals().filter(t => t.state === "live");
-        const descendants = (mine) => {
-            const roots = new Set(mine.map(a => a.address)), seen = new Set(roots);
-            const visit = (id) => {
-                for (const child of live.filter(t => t.parent === id)) {
-                    if (seen.has(child.address))
-                        continue;
-                    seen.add(child.address);
-                    visit(child.address);
-                }
-            };
-            roots.forEach(visit);
-            return seen.size - roots.size;
-        };
+        const all = agents(), ps = panes(), tree = agentTree(terminals());
         const groups = spaces().map(space => {
             const tabs = space.tabs.map((tab) => {
-                const mine = all.filter(a => a.tab === tab.id), lead = tabLead(tab.id, ps, mine);
-                return { kind: "tab", id: `pk-${tab.id}`, space, tab, label: tabLabel(tab, lead), program: lead?.program, team: descendants(mine) };
+                const mine = all.filter(a => a.tab === tab.id && !tree.subagents.has(a.address)), lead = tabLead(tab.id, ps, mine);
+                return { kind: "tab", id: `pk-${tab.id}`, space, tab, label: tabLabel(tab, lead), program: lead?.program, team: tree.countDescendants(mine.map(a => a.address)) };
             }).filter(row => !this.query || [space.name, row.label, row.tab.name, machineLabel(space.machine), spaceFolder(space, ps),
                 ...all.filter(a => a.tab === row.tab.id).map(a => `${a.program?.name ?? ""} ${a.title}`)].join(" ").toLowerCase().includes(this.query));
             return { space, tabs };
@@ -112,12 +94,9 @@ export class Picker {
             reveal();
             this.reveal = false;
         }
-        return dialog(t, "picker").track_focus(this.handle)
-            .on_key_down((event, cx) => {
+        return dialogFrame(t, "picker", "Go to…", this.handle, () => closeOverlay(this.overlay), "picker-close", (event, cx) => {
             const at = pickable.findIndex(r => r.id === this.selected), row = pickable[at];
-            if (event.key === "escape")
-                closeOverlay(this.overlay);
-            else if (event.key === "down" || event.key === "up") {
+            if (event.key === "down" || event.key === "up") {
                 if (pickable.length)
                     this.selected = pickable[(at + (event.key === "down" ? 1 : pickable.length - 1)) % pickable.length].id;
                 this.reveal = true;
@@ -131,7 +110,6 @@ export class Picker {
             cx.stop_propagation();
             cx.notify();
         })
-            .child(dialogHeader(t, "Go to…", () => closeOverlay(this.overlay), "picker-close"))
             .child(textInput(t, this.input).id("picker-input"))
             .child(v_flex().id("pk-list").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(this.scroll).on_size_change(reveal)
             .children(rows.map(row => {

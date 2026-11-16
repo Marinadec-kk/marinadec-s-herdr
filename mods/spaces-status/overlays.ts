@@ -2,6 +2,7 @@ import { openOverlay, props, settings, spaces, run } from "herdr";
 import type { AppearanceTarget } from "./appearance-model.js";
 import { record } from "./appearance-model.js";
 import { menuHeight } from "./ui/tokens.js";
+import { spaceMenu, TAB_MENU } from "./presentation/menus.js";
 
 export const overlayProps = (raw: unknown): Record<string, unknown> => ({ ...record(raw), ...record(props()) });
 type OverlayOptions = { kind?: "dialog" | "popup"; width: number; height?: number; at?: "top" | "pointer"; offset?: number };
@@ -19,13 +20,17 @@ export function openAppearance(target: AppearanceTarget): void {
     height: target.kind === "machine" ? 580 : target.tree ? 320 : 640 });
 }
 export function openSpaceMenu(id: string, checkout: "main" | "linked" | null, tree: boolean): void {
-  openSurface({ spaceMenu: { id, checkout, tree } }, { kind: "popup", width: 280, height: menuHeight(checkout === "linked" ? 5 : 4) });
+  openSurface({ spaceMenu: { id, checkout, tree } }, { kind: "popup", width: 280, height: menuHeight(spaceMenu(checkout).length) });
+}
+export function openTabMenu(id: string, space?: string): void {
+  openSurface({ chromeMenu: { id, space } }, { kind: "popup", width: 250, height: menuHeight(TAB_MENU.length) });
 }
 export function newSpaceInHome(machine: string | null = spaces().find(s => s.active)?.machine ?? null): void {
   // Missing folder inherits cwd, even with an explicit machine. Herdr uses an
   // explicitly empty folder for that machine's home (literal "~" is not expanded).
-  run("space.new", { machine: machine ?? "", folder: "" });
+  newSpaceAt(machine, "");
 }
+export const newSpaceAt = (machine: string | null, folder: string): void => { run("space.new", { machine: machine ?? "", folder }); };
 export function openWorktree(space: string, action: "new" | "open" | "remove"): void {
   const target = spaces().find(s => s.id === space);
   if (!target) return;

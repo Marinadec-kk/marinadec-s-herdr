@@ -13,8 +13,9 @@ import { MATERIAL_ICONS } from "./material-catalog.js";
 import { PLUSHIES } from "./plush-catalog.js";
 import { characterLabel } from "./avatar-labels.js";
 import { button as controlButton, textInput, secondary } from "./ui/controls.js";
-import { dialog, dialogHeader, dialogActions, scrollBody } from "./ui/surfaces.js";
+import { dialogFrame, dialogError, dialogActions, scrollBody } from "./ui/surfaces.js";
 import { Menu } from "./ui/menu.js";
+import { spaceMenu } from "./presentation/menus.js";
 import { openAppearance, openWorktree, closeSpace, overlayProps } from "./overlays.js";
 import { machineLabel } from "./presentation/labels.js";
 import { CHARACTER_ACCENTS } from "./character-accents.js";
@@ -149,12 +150,10 @@ class AppearanceEditor implements AppearanceOverlay {
       }));
     const colorNote = field(isMachine ? "Group color follows the character’s accent."
       : worktree ? "Worktree · parent color · fixed Git tree icon" : `Color assigned by ${machineLabel(machine)}`);
-    return dialog(t, "appearance-editor")
-      .track_focus(this.handle).on_key_down((event, cx) => {
-        if (event.key === "escape") { cx.stop_propagation(); closeOverlay(this.overlay); }
-        else if (event.key === "enter" && (event.modifiers.control || event.modifiers.platform)) { cx.stop_propagation(); this.save(cx); }
+    return dialogFrame(t, "appearance-editor", isMachine ? "Machine appearance" : "Space appearance",
+      this.handle, () => closeOverlay(this.overlay), "appearance-close", (event, cx) => {
+        if (event.key === "enter" && (event.modifiers.control || event.modifiers.platform)) { cx.stop_propagation(); this.save(cx); }
       })
-      .child(dialogHeader(t, isMachine ? "Machine appearance" : "Space appearance", () => closeOverlay(this.overlay), "appearance-close"))
       .child(scrollBody("appearance-scroll", this.scroll)
         .when(!isMachine, el => el.child(field("Name")).child(input(this.name)))
         .child(colorNote)
@@ -181,7 +180,7 @@ class AppearanceEditor implements AppearanceOverlay {
         .child(h_flex().gap(10).items_center()
           .child(renderAvatar(avatar, isMachine ? 36 : 24, color, label))
           .child(div().flex_1().min_w(0).truncate().font_semibold().child(label))))
-      .when(Boolean(this.error), el => el.child(div().text_size(12).text_color(t.blocked).child(this.error)))
+      .when(Boolean(this.error), el => el.child(dialogError(t, this.error)))
       .child(dialogActions()
         .child(div().flex_1())
         .child(button(t, "appearance-cancel", "Cancel", () => closeOverlay(this.overlay)))
@@ -195,13 +194,11 @@ class SpaceMenu implements AppearanceOverlay {
     this.menu = new Menu(cx, () => closeOverlay(this.overlay));
   }
   private items(): { label: string; action: () => void }[] {
-    const worktree = (action: "new" | "open" | "remove") => openWorktree(this.id, action);
-    return [
-      { label: "Rename & appearance…", action: () => openAppearance({ kind: "space", id: this.id, tree: this.tree }) },
-      { label: "New worktree…", action: () => worktree("new") }, { label: "Open worktree…", action: () => worktree("open") },
-      ...(this.checkout === "linked" ? [{ label: "Remove worktree", action: () => worktree("remove") }] : []),
-      { label: "Close space", action: () => closeSpace(this.id) },
-    ];
+    return spaceMenu(this.checkout).map(item => ({ label: item.label, action: () => {
+      if (item.action === "appearance") openAppearance({ kind: "space", id: this.id, tree: this.tree });
+      else if (item.action === "close") closeSpace(this.id);
+      else openWorktree(this.id, item.action);
+    } }));
   }
   render(): Element {
     return this.menu.render(theme() as Theme, "space-context", this.items().map((item, index) => ({ ...item, id: `space-action-${index}` })));

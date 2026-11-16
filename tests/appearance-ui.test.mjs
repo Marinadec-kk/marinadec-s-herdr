@@ -2,6 +2,10 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { APPEARANCE_KEY, ensureMachineDefaults, ensureSpaceDefaults, readAppearance, machineColor } from "../mods/spaces-status/appearance-model.js";
 import { CHARACTER_ACCENTS } from "../mods/spaces-status/character-accents.js";
 
@@ -29,7 +33,7 @@ function element(kind) {
 function environment() {
   const env = {
     inputs: [], values: new Map(), calls: new Map(), commands: [], opened: [], closed: [], writes: [],
-    timers: 0, spawns: 0, notifications: 0, props: {}, scrolls: [], panes: [], agents: [], terminals: [], jobs: [], clipboard: [], stops: 0,
+    timers: 0, timerTasks: [], releases: 0, spawns: 0, notifications: 0, props: {}, scrolls: [], panes: [], agents: [], terminals: [], jobs: [], clipboard: [], stops: 0,
     layout: { id: "root", children: [{ id: "sidebar", size: { px: 299 } }] },
     spaces: [
       { id: "s1", name: "Demo", named: true, machine: null, folder: "/demo", tabs: [], active: true, status: null },
@@ -44,7 +48,11 @@ function environment() {
     write_to_clipboard: text => env.clipboard.push(text),
     focus_handle: () => { let focused = false; return { focus() { focused = true; }, is_focused() { return focused; } }; },
     spawn: job => { env.spawns++; env.jobs.push(job); },
-    timer: { every: () => { env.timers++; }, after: () => { env.timers++; } },
+    timer: { every: (_ms, handler) => {
+      env.timers++;
+      const task = { handler, cancelled: false, cancel() { this.cancelled = true; } };
+      env.timerTasks.push(task); return task;
+    }, after: () => { env.timers++; } },
   };
   env.element = element;
   env.input = options => {
@@ -71,7 +79,8 @@ function environment() {
     if (name === "window") return { platform: "linux", buttons: true, titlebar: "none" };
     if (name === "home") return "/home/test";
     if (name === "appHome") return "/mock/herdr";
-    if (name === "readTextFile") return Promise.resolve(null);
+    if (name === "readTextFile") return env.readTextFile ? env.readTextFile(...args) : Promise.resolve(null);
+    if (name === "watchFolder" && env.watchFolder) return env.watchFolder(...args);
     if (name === "focused") return { space: "s1", tab: "t1", pane: "p1" };
     if (name === "exec" && env.exec) return env.exec(...args);
     if (name === "hc" && env.hc) return env.hc(...args);
@@ -96,7 +105,7 @@ const modules = {
     export const v_flex=()=>globalThis.__appearanceHost.element("column");
     export const ScrollHandle={new:()=>({scroll_to_item: index=>globalThis.__appearanceHost.scrolls.push(index)})};
     export const Scrollbar={vertical: id=>globalThis.__appearanceHost.element("scrollbar").id(id)};
-    export const EditorState={new: options=>({options,release(){}})};
+    export const EditorState={new: options=>({options,release(){globalThis.__appearanceHost.releases++;}})};
     export const Editor={new: state=>globalThis.__appearanceHost.element("editor").state(state)};
     export const v_virtual_list=(id,count,height,key,render)=>globalThis.__appearanceHost.element("virtual-list").id(id).children(render({start:0,end:count}));
     export const InputState={new: options=>globalThis.__appearanceHost.input(options)};
@@ -120,6 +129,12 @@ const { openWorktree } = await import("../mods/spaces-status/overlays.js");
 const { Menu } = await import("../mods/spaces-status/ui/menu.js");
 const { button } = await import("../mods/spaces-status/ui/controls.js");
 const { LINEAGE_KEY, checkoutKey, readLineage } = await import("../mods/spaces-status/worktree-lineage.js");
+const { readRepository, readGitStatus } = await import("../mods/spaces-status/data/git.js");
+const { checkouts } = await import("../mods/spaces-status/views/worktree-git.js");
+const { parseMachines, machineError, loadMachines } = await import("../mods/spaces-status/data/machines.js");
+const { PanelLifecycle } = await import("../mods/spaces-status/views/panel-lifecycle.js");
+const { openSpaceMenu, openTabMenu } = await import("../mods/spaces-status/overlays.js");
+const { menuHeight } = await import("../mods/spaces-status/ui/tokens.js");
 let env;
 beforeEach(() => {
   env = environment();
@@ -684,4 +699,202 @@ test("worktree removal rechecks newly dirty state before closing the space or de
   await env.jobs.shift()(env.cx);
   assert.deepEqual(env.commands, [["space.close", { id: "s1", confirmed: true }]]);
   assert.deepEqual(calls.find(call => call.args[0] === "worktree").args, ["worktree", "remove", "--force", "/repo/worktree"]);
+});
+
+const deferred = () => {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+};
+const ok = stdout => ({ code: 0, stdout, stderr: "" });
+const activate = id => { for (const space of env.spaces) space.active = space.id === id; };
+
+test("shared Git reads preserve actual whitespace paths, linked checkouts and NUL status records", async () => {
+  const directory = mkdtempSync(join(existsSync("/tmp/opencode") ? "/tmp/opencode" : tmpdir(), "herdr-git-"));
+  const root = join(directory, " repo\twith\nspace \n"), linked = join(directory, " checkout\n ");
+  mkdirSync(root);
+  const calls = [];
+  env.exec = async (command, args, options) => {
+    calls.push({ command, args, options });
+    const r = spawnSync(command, args, { cwd: options.cwd, encoding: "utf8" });
+    if (r.error) throw r.error;
+    return { code: r.status, stdout: r.stdout, stderr: r.stderr };
+  };
+  const run = args => {
+    const r = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+  };
+  try {
+    run(["init", "-q"]);
+    run(["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-qm", "Initial"]);
+    run(["worktree", "add", "-qb", "linked", linked]);
+    const { repo } = await readRepository(linked, "pi");
+    assert.equal(repo.top, linked);
+    assert.equal(repo.main, root);
+    assert.equal(repo.linked, true);
+    assert.deepEqual(calls.map(c => c.args[0]), ["rev-parse", "rev-parse"]);
+    const list = await checkouts(repo, "pi");
+    assert.deepEqual(new Set(list.map(c => c.path)), new Set([root, linked]));
+    const filenames = [" leading ", "tab\tname", "line\nname", "back\\slash"];
+    for (const name of filenames) writeFileSync(join(linked, name), "new\n");
+    const status = await readGitStatus(linked, "pi", 1000);
+    assert.deepEqual(new Set(status.files.map(f => f.path)), new Set(filenames));
+    assert.ok(calls.every(c => c.options.on === "pi"));
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("machine parsing shares filtering, defaults and structured/plain error handling", async () => {
+  assert.deepEqual(parseMachines({ machines: [null, { name: 9 }, { name: "temp", temporary: true },
+    { name: "pi", state: "connected", via: true }, { name: "small", target: "user@host", keeps_running_after_logout: false }] }), [
+    { name: "pi", target: "pi", state: "connected", via: true },
+    { name: "small", target: "user@host", keeps_running_after_logout: false },
+  ]);
+  assert.deepEqual(parseMachines({ machines: {} }), []);
+  assert.deepEqual(machineError({ stdout: "progress", stderr: '{"error":{"kind":"login_needed","message":"Log in"}}' }), { kind: "login_needed", message: "Log in" });
+  assert.equal(machineError({ stdout: "", stderr: " offline \n" }).message, "offline");
+  env.hc = async () => ({ code: 1, stdout: "", stderr: "offline" });
+  await assert.rejects(loadMachines, /offline/);
+  const sidebar = new Spaces(); sidebar.init({}, env.cx);
+  sidebar.machines = [{ name: "saved", target: "saved" }];
+  await env.jobs.shift()(env.cx);
+  assert.equal(sidebar.machines[0].name, "saved");
+});
+
+test("static popup opening height matches rendered rows for main, linked and tab menus", () => {
+  const count = (node, prefix) => (node?.props?.id?.startsWith(prefix) ? 1 : 0) + (node?.kids ?? []).reduce((n, child) => n + count(child, prefix), 0);
+  for (const checkout of [null, "main", "linked"]) {
+    openSpaceMenu("s2", checkout, checkout === "linked");
+    const opened = env.opened.at(-1), ui = createAppearanceOverlay(opened.props, env.cx);
+    const rendered = ui.render();
+    assert.equal(opened.height, menuHeight(count(rendered, "space-action-")));
+    assert.equal(rendered.props.h, opened.height);
+  }
+  openTabMenu("tab", "s2");
+  const opened = env.opened.at(-1), ui = createPixelMenu(opened.props, env.cx);
+  assert.equal(ui.render().props.h, opened.height);
+  click(ui, "pixel-menu-new");
+  assert.deepEqual(env.commands.at(-1), ["tab.new", { space: "s2" }]);
+});
+
+test("panel lifecycle coalesces refreshes and cancels watches on context changes and close", async () => {
+  let refreshes = 0, cancelled = 0;
+  const lifecycle = new PanelLifecycle(env.cx, () => { refreshes++; });
+  const local = lifecycle.sync(), request = lifecycle.begin(local);
+  lifecycle.begin(local); lifecycle.begin(local);
+  lifecycle.finish(request, env.cx);
+  assert.equal(refreshes, 1);
+  env.watchFolder = () => {
+    const waiting = deferred();
+    return Object.assign(waiting.promise, { cancel() { cancelled++; waiting.resolve([]); } });
+  };
+  lifecycle.watch("/demo", local, env.cx);
+  const oldWatch = env.jobs.shift()(env.cx);
+  activate("s2"); const remote = lifecycle.sync();
+  await oldWatch;
+  assert.equal(cancelled, 1);
+  assert.equal(lifecycle.current(local), false);
+  lifecycle.watch("/remote", remote, env.cx);
+  assert.equal(env.jobs.length, 0);
+  activate("s1"); const again = lifecycle.sync();
+  assert.notEqual(again, local);
+  lifecycle.watch("/demo", again, env.cx);
+  const watch = env.jobs.shift()(env.cx);
+  lifecycle.close(); await watch;
+  env.timerTasks[0].handler(env.cx);
+  assert.equal(refreshes, 1);
+  assert.equal(cancelled, 2);
+  assert.equal(env.timerTasks[0].cancelled, true);
+  assert.equal(lifecycle.begin(again), undefined);
+});
+
+for (const view of ["files", "changes"]) test(`${view} ignores stale A -> B -> A results without clearing the new load`, async () => {
+  activate("s2");
+  const first = deferred(), second = deferred();
+  let reads = 0;
+  env.exec = async (command, args, options) => {
+    const initial = view === "files" ? command === "sh" : args.includes("--show-toplevel");
+    if (initial && options.on === "pi") return (++reads === 1 ? first : second).promise;
+    if (command === "sh") return ok("f\0conflict\0");
+    if (args.includes("--show-toplevel")) return ok(options.cwd + "\n");
+    if (args.includes("status")) return ok("AA conflict\0");
+    if (args.includes("--numstat")) return ok("");
+    if (args.includes("diff")) return ok("@@ -1 +1 @@\n-old\n+new\n");
+    return ok("a".repeat(40));
+  };
+  const ui = createView({ view }, env.cx), a1 = env.jobs.shift()(env.cx);
+  activate("s3"); ui.render(env.cx);
+  await env.jobs.shift()(env.cx);
+  assert.ok(find(ui.render(), view === "files" ? "file-conflict" : "change-conflict"));
+  assert.match(text(ui.render()), /\bU\b/);
+  activate("s2"); ui.render(env.cx);
+  const a2 = env.jobs.shift()(env.cx);
+  first.resolve(ok(view === "files" ? "f\0obsolete\0" : "/old\n"));
+  await a1;
+  assert.match(text(ui.render()), view === "files" ? /Loading files/ : /Loading changes/);
+  assert.doesNotMatch(text(ui.render()), /obsolete|conflict/);
+  second.resolve(ok(view === "files" ? "f\0conflict\0" : "/remote\n"));
+  await a2;
+  assert.ok(find(ui.render(), view === "files" ? "file-conflict" : "change-conflict"));
+  ui.close();
+  assert.equal(env.timerTasks[0].cancelled, true);
+});
+
+test("file preview selection A -> B -> A rejects the first A and releases on close", async () => {
+  activate("s2");
+  env.exec = async command => command === "sh" ? ok("f\0a\0f\0b\0") : { code: 1, stdout: "", stderr: "not a git repository" };
+  const ui = createView({ view: "files" }, env.cx);
+  await env.jobs.shift()(env.cx);
+  const first = deferred();
+  env.readTextFile = () => first.promise;
+  click(ui, "file-a"); const old = env.jobs.shift()(env.cx);
+  click(ui, "files-back"); click(ui, "file-b");
+  env.readTextFile = async () => "B";
+  await env.jobs.shift()(env.cx);
+  click(ui, "files-back"); click(ui, "file-a");
+  env.readTextFile = async () => "latest A";
+  await env.jobs.shift()(env.cx);
+  const editorValue = node => node?.kind === "editor" ? node.props.state.options.value : node?.kids?.map(editorValue).find(Boolean);
+  assert.equal(editorValue(ui.render()), "latest A");
+  first.resolve("obsolete A"); await old;
+  assert.equal(editorValue(ui.render()), "latest A");
+  assert.equal(env.releases, 1); // B was released when returning to A.
+  click(ui, "files-back"); click(ui, "file-b");
+  const pending = deferred(); env.readTextFile = () => pending.promise;
+  const job = env.jobs.shift()(env.cx);
+  ui.close(); pending.resolve("closed preview"); await job;
+  assert.equal(editorValue(ui.render()), undefined);
+  assert.equal(env.releases, 2);
+});
+
+test("sidebar and search agree when top-level agents repeat and children share their tab", () => {
+  const tab = { id: "tab", name: "Agent", named: true, active: true, index: 1, status: "working" };
+  env.spaces[0].tabs = [tab];
+  const program = { key: "agent", name: "Agent", agent: true };
+  const root = { address: "root", space: "s1", tab: "tab", status: "working", program };
+  env.agents = [root, root, { ...root, address: "child" }];
+  env.terminals = [
+    { address: "root", state: "live" },
+    { address: "child", parent: "root", state: "live" },
+    { address: "leaf", parent: "child", state: "live" },
+    { address: "finished", parent: "root", state: "exited" },
+  ];
+  const sidebar = new Spaces();
+  const sessions = sidebar.sessions([{ w: env.spaces[0] }], new Map([["s1", env.agents]]), env.terminals, []);
+  assert.equal(sessions.get("s1")[0].subs, 2);
+  const picker = createView({ view: "picker" }, env.cx);
+  assert.match(text(find(picker.render(), "pk-tab")), /\+2/);
+});
+
+test("legacy uncancellable watches cannot refresh or rearm after close", async () => {
+  const waiting = deferred();
+  env.watchFolder = () => waiting.promise;
+  let refreshes = 0;
+  const lifecycle = new PanelLifecycle(env.cx, () => { refreshes++; });
+  lifecycle.watch("/demo", lifecycle.sync(), env.cx);
+  const watching = env.jobs.shift()(env.cx);
+  lifecycle.close();
+  waiting.resolve(["/demo/file"]);
+  await watching;
+  assert.equal(refreshes, 0);
+  assert.equal(env.calls.get("watchFolder"), 1);
 });

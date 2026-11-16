@@ -1,4 +1,5 @@
 import type { AgentInfo, PaneInfo, SpaceInfo, TabInfo } from "herdr";
+import { normalizePath, joinPath } from "../data/paths.js";
 
 export const machineLabel = (machine: string | null | undefined): string => machine || "This computer";
 
@@ -20,11 +21,11 @@ export function tabLead(id: string, panes: readonly PaneInfo[], agents: readonly
 }
 
 export function shortPath(path: string, home: string): string {
-  const p = path.replace(/\\/g, "/"), h = home.replace(/\\/g, "/").replace(/\/+$/, "");
-  return h && (p === h || p.startsWith(h + "/")) ? "~" + p.slice(h.length) : path;
+  const p = normalizePath(path), h = normalizePath(home), prefix = joinPath(h, "");
+  return h && p === h ? "~" : h && p.startsWith(prefix) ? "~/" + p.slice(prefix.length) : path;
 }
 
 export function spaceFolder(space: SpaceInfo, panes: readonly PaneInfo[]): string {
-  const tabs = new Set(space.tabs.map(tab => tab.id));
+  const tabs = new Set((space.tabs ?? []).map(tab => tab.id));
   return panes.find(p => tabs.has(p.tab) && p.cwd)?.cwd || space.folder;
 }

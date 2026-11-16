@@ -8,6 +8,7 @@ import { pixelIcon, programIcon } from "./pixel-ui.js";
 import type { PixelGlyph } from "./pixel-ui.js";
 import type { ChromeView } from "./pixel-chrome.js";
 import { Menu } from "./ui/menu.js";
+import { TAB_MENU } from "./presentation/menus.js";
 import { openWorktree, openTabRename, closeTab, overlayProps, newSpaceInHome } from "./overlays.js";
 
 type KnownAgent = Awaited<ReturnType<typeof knownAgents>>[number];
@@ -52,11 +53,11 @@ class PixelMenu implements ChromeView {
     const tab = record(this.data.chromeMenu);
     if (typeof tab.id === "string") {
       const id = tab.id, space = typeof tab.space === "string" ? tab.space : undefined;
-      return [
-        { id: "rename", label: "Rename tab", glyph: "file", action: () => openTabRename(id) },
-        { id: "new", label: "New tab", glyph: "plus", action: () => run("tab.new", { space }) },
-        { id: "close", label: "Close tab", glyph: "close", action: () => closeTab(id) },
-      ];
+      return TAB_MENU.map(item => ({ ...item, action: () => {
+        if (item.id === "rename") openTabRename(id);
+        else if (item.id === "new") run("tab.new", { space });
+        else closeTab(id);
+      } }));
     }
     const space = spaces().find(s => s.id === this.space), installed = this.agents.filter(a => a.installed);
     const choices = this.failed ? installed : [...installed, ...this.agents.filter(a => !a.installed).slice(0, 2)];

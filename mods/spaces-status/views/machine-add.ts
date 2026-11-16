@@ -3,18 +3,16 @@ import { div } from "gpui-kit";
 import type { AsyncContext, Context, Element } from "gpui-kit";
 import { h_flex, v_flex, InputState, ScrollHandle } from "gpui-base";
 import { hc, exec, home, readTextFile, theme, closeOverlay } from "herdr";
-import { record } from "../appearance-model.js";
 import type { Theme } from "../appearance-model.js";
 import { button, secondary, textInput } from "../ui/controls.js";
-import { dialog, dialogHeader, scrollBody } from "../ui/surfaces.js";
+import { dialogFrame, dialogFocus, dialogError, scrollBody } from "../ui/surfaces.js";
 import { pixelIcon, pixelStatus } from "../pixel-ui.js";
 import { tint } from "../appearance-colors.js";
 import { UI } from "../ui/tokens.js";
+import { loadMachines, machineError } from "../data/machines.js";
+import type { MachineInfo as Machine } from "../data/machines.js";
 
 interface Host { alias: string; aliases: string[]; hostname: string | null; user: string | null }
-interface Machine {
-  name: string; target: string; host?: string; keeps_running_after_logout?: boolean; logout_linger_user?: string;
-}
 const shellArg = (target: string) => /^[a-z0-9_@%+=:,./-]+$/i.test(target) ? target : "'" + target.replace(/'/g, "'\\''") + "'";
 async function includeFiles(value: string): Promise<string[]> {
   const paths = (value.match(/"[^"]*"|\S+/g) ?? []).map(p => p.replace(/^"|"$/g, ""))
@@ -62,7 +60,7 @@ export class MachineAdd {
   private copied = "";
   private error = "";
   constructor(private overlay: string, cx: AsyncContext) {
-    this.handle = cx.focus_handle(); this.handle.focus(); this.input.focus();
+    this.handle = dialogFocus(cx, this.input);
     this.input.on("change", (_e, cx) => { this.typed = this.input.value(); cx.notify(); });
     this.input.on("submit", (_e, cx) => this.add(this.typed, cx));
     cx.spawn(async cx => {
@@ -83,15 +81,7 @@ export class MachineAdd {
     return this.added.find(m => m.name === target || m.target === target || m.host === target);
   }
   private async refresh(): Promise<void> {
-    const result = await hc(["machine", "ls", "--json"]).catch((): null => null);
-    try {
-      const list: unknown = result?.code === 0 ? record(JSON.parse(result.stdout)).machines : [];
-      this.added = Array.isArray(list) ? list.map(record).filter(m => !m.temporary && typeof m.name === "string")
-        .map(m => ({ name: m.name as string, target: typeof m.target === "string" ? m.target : m.name as string,
-          host: typeof m.host === "string" ? m.host : undefined,
-          keeps_running_after_logout: typeof m.keeps_running_after_logout === "boolean" ? m.keeps_running_after_logout : undefined,
-          logout_linger_user: typeof m.logout_linger_user === "string" ? m.logout_linger_user : undefined })) : [];
-    } catch { this.added = []; }
+    this.added = await loadMachines().catch((): Machine[] => []);
     for (const target of this.pending) {
       if (!this.find(target)) continue;
       this.pending.delete(target); delete this.state[target];
@@ -117,10 +107,8 @@ export class MachineAdd {
         if (this.typed.trim() === target) { this.input.set_value(""); this.typed = ""; }
         await this.refresh(); await this.checkMac(target);
       } else {
-        let why: Record<string, unknown>;
-        try { why = record(record(JSON.parse(result.stdout || result.stderr)).error); } catch { why = {}; }
-        const message = typeof why.message === "string" ? why.message : (result.stderr || result.stdout || "The machine did not answer.").trim();
-        if (["hc_missing", "incompatible", "login_needed", "auth_failed", "host_key"].includes(String(why.kind))
+        const { message, kind } = machineError(result, "The machine did not answer.");
+        if (["hc_missing", "incompatible", "login_needed", "auth_failed", "host_key"].includes(kind)
           || /password|passphrase|host key|permission denied|login/i.test(message)) {
           this.pending.add(target);
           this.state[target] = `This connection needs an answer in a terminal (password, host key or core installation). Run: hc machine add ${shellArg(target)}`;
@@ -167,15 +155,13 @@ export class MachineAdd {
   }
   render(): Element {
     const t = theme() as Theme, close = () => closeOverlay(this.overlay), target = this.typed.trim();
-    return dialog(t, "machine-add").track_focus(this.handle)
-      .on_key_down((event, cx) => { if (event.key === "escape") { cx.stop_propagation(); close(); } })
-      .child(dialogHeader(t, "Add a machine", close, "ma-close"))
+    return dialogFrame(t, "machine-add", "Add a machine", this.handle, close, "ma-close")
       .child(scrollBody("ma-hosts", this.scroll)
         .child(secondary(t, this.hosts === null ? "Reading ~/.ssh/config…" : this.hosts.length ? "SSH hosts" : "Your SSH config lists no hosts."))
         .children((this.hosts ?? []).filter(h => !this.find(h.alias)).map(h =>
           this.row(t, h.alias, h.alias, [h.user, h.hostname].filter(Boolean).join("@") || h.aliases.join(", "))))
         .children(this.added.map(m => this.row(t, m.target, m.name, m.target)))
-        .when(Boolean(this.error), el => el.child(secondary(t, this.error).text_color(t.blocked))))
+        .when(Boolean(this.error), el => el.child(dialogError(t, this.error))))
       .child(h_flex().flex_none().gap(8).child(textInput(t, this.input).flex_1().min_w(0))
         .child(button(t, "ma-add-typed", "Add", cx => this.add(target, cx), { selected: true, disabled: !target || this.state[target] === "adding" || Boolean(this.find(target)) })))
       .when(Boolean(target && this.state[target]), el => el.child(this.message(t, target)));

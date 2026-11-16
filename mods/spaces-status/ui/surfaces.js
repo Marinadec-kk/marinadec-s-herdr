@@ -1,7 +1,7 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { UI_FONT, UI_FONT_SIZE } from "../appearance-model.js";
-import { iconButton } from "./controls.js";
+import { iconButton, secondary } from "./controls.js";
 import { UI } from "./tokens.js";
 export function surface(t, kind) {
     const el = kind === "bar" ? h_flex().items_center() : v_flex();
@@ -17,6 +17,28 @@ export function dialogHeader(t, title, close, id) {
         .child(div().flex_1().min_w(0).text_size(16).font_semibold().child(title))
         .child(iconButton(t, id, "Close", div().child("×"), close, { quiet: true }));
 }
+export function dialogFocus(cx, input) {
+    const handle = cx.focus_handle();
+    handle.focus();
+    input?.focus();
+    return handle;
+}
+export function dialogFrame(t, id, title, handle, close, closeId, key) {
+    return dialog(t, id).track_focus(handle).on_key_down((event, cx) => {
+        if (event.key === "escape") {
+            cx.stop_propagation();
+            close();
+        }
+        else
+            key?.(event, cx);
+    }).child(dialogHeader(t, title, close, closeId));
+}
+export function panelHeader(t, title, leading) {
+    return h_flex().h(42).flex_none().px(12).gap(8).items_center().border_b(UI.stroke).border_color(t.border)
+        .children(leading ? [leading] : []).child(div().font_semibold().child(title));
+}
+export const emptyState = (t, message) => secondary(t, message).p(8);
+export const dialogError = (t, message) => secondary(t, message).text_color(t.blocked);
 export const dialogActions = () => h_flex().flex_none().gap(8).items_center().justify_end();
 export function scrollBody(id, handle) {
     return v_flex().id(id).flex_1().min_h(0).gap(12).overflow_y_scrollbar().track_scroll(handle);

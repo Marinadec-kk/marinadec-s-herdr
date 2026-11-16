@@ -1,6 +1,7 @@
 // Creation history is app-owned: Git records shared repositories, not worktree ancestry.
 import { machineKey, record } from "./appearance-model.js";
 import type { AppearanceState, SpaceIdentity } from "./appearance-model.js";
+import { normalizePath, pathKey } from "./data/paths.js";
 
 export const LINEAGE_KEY = "spaces-status.worktree-lineage";
 export interface WorktreeOrigin {
@@ -11,8 +12,8 @@ export interface WorktreeOrigin {
   source: { space: string; name: string; path: string; branch: string; commit: string };
 }
 export type WorktreeLineage = Record<string, WorktreeOrigin>;
-export const checkoutPath = (path: string): string => path.replace(/\\/g, "/").replace(/\/+$/, "");
-export const checkoutKey = (machine: string | null, path: string): string => JSON.stringify([machine, checkoutPath(path)]);
+export const checkoutPath = normalizePath;
+export const checkoutKey = pathKey;
 export function readLineage(raw: unknown): WorktreeLineage {
   const out: WorktreeLineage = {};
   for (const value of Object.values(record(raw))) {
