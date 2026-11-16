@@ -56,6 +56,8 @@ Machine defaults are stored, not hash-based. On first assignment, local comes fi
 
 ## Built from
 
+**Installation.** Use the gallery-style agent flow with the repository URL `https://github.com/Marinadec-kk/marinadec-s-herdr`. Read the target Herdr home's `AGENTS.md`, this recipe and the files, then copy `layouts/main-status.json` and the complete `mods/spaces-status/` folder into that home (`HERDR_APP_HOME`, otherwise `~/.config/herdr-app`). Include the compiled JavaScript, fonts and icons. Resolve name collisions using Herdr's rules, run `herdr-app check` on the installed mod, then select the layout. The checkout is only an installation/update source; the installed copies work independently. `keys.json` is an optional Yazi shortcut to merge separately, keeping the person's other bindings. The README covers manual installation, updates and migration from older symlink installs.
+
 **Layout** — `layouts/main-status.json`, cloned from Herdr's `main` 0.1.15:
 
 ```
@@ -109,7 +111,8 @@ The same build compiles the appearance/catalog helpers beside their sources; com
 - **Git observation is ref-only.** No `git status`, uncommitted counters, worktree scans or background fetch. Ahead/behind describe the locally known upstream ref, not necessarily the remote server's latest state.
 - **Default pools are finite.** There are ten automatic colors and four pixel mascots; repeats are possible past capacity, or when chosen explicitly. Defaults no longer collide just because two names hash alike.
 - **Accepted direction.** Critters is the chosen foundation; the user requested a cohesive pixel interface instead of further visual trials. Preserve saved preferences and current functionality; do not restore Compact Pixel/Traveler over it.
-- **Font discovery.** New fonts load at app start/on look change. After updating a symlinked installation, restart or refresh the link; change theme once and back if newly added font glyphs are missing.
+- **Updates use copies.** Update both the mod folder and the layout from the repository; `git pull` alone only updates the checkout. When migrating an older symlink installation, remove the link itself and copy the mod into its place. Keep saved appearance and fold state.
+- **Font discovery.** New fonts load at app start/on look change. Change theme once and back, or restart Herdr, if newly added font glyphs are missing.
 - **The agents block is intentionally absent.** Sessions live inline. Adding an `agents` block back would draw a second list and compete for `setAgentOrder`.
 - **State overrides the file.** On a machine that already used `main-status`, `layouts/.state/main-status.json` can override the sidebar width and theme. A fresh install uses the file's 299 px and ink/paper.
 - **Colors are local.** `shared("space.colors")` is keyed by space id and lives in that machine's shared state. The same repo on two machines can have different colors; nothing about colors is synced by this repo.
@@ -126,6 +129,7 @@ The same build compiles the appearance/catalog helpers beside their sources; com
 - `npm run test` passes, including pinned-color, Save/Cancel/Reset and collision regressions.
 - `npm run build` reproduces `main.js` from `main.ts`.
 - `herdr-app check mods/spaces-status` passes.
+- A fresh copy-based installation passes `herdr-app check` from its installed location, includes the bundled fonts/icons and needs no repository checkout at runtime.
 - `herdr-app status` shows `"layout": "main-status"` and `"errors": []`.
 - Inspecting the app shows a row under every space that has an agent, harness icons and statuses on those rows, and the chevron at the far right. Any local verification screenshot stays outside the repository; never commit real session data.
 - With only this computer there is no machine header or card; a known remote enables machine cards with stable colored frames and fills.

@@ -15,32 +15,67 @@ A pixel-art workspace for the [Herdr](https://herdr.dev) desktop app. Every agen
 
 ## Install
 
-Clone this repository and link the mod into Herdr's home:
+### Ask your agent (recommended)
+
+Copy this line into your agent in Herdr:
+
+```text
+Read ~/.config/herdr-app/AGENTS.md, then add this layout: https://github.com/Marinadec-kk/marinadec-s-herdr
+```
+
+If you set `HERDR_APP_HOME`, use the `AGENTS.md` in that folder instead.
+
+This follows the [Herdr gallery](https://herdr.dev/gallery/) installation flow. Your agent reads `RECIPE.md` and the files, copies the layout and its complete mod folder into Herdr's home, checks the mod, and switches to the new layout:
+
+```text
+~/.config/herdr-app/
+├── layouts/main-status.json
+└── mods/spaces-status/       JavaScript, fonts, icons and helper modules
+```
+
+Herdr loads these copies directly. The repository checkout is only a download/update source, so it can be removed after installation. Compiled JavaScript and assets are included; no npm install or build is needed. If a destination name is already taken, the agent follows Herdr's naming-conflict rules and adjusts the new copy's references.
+
+### Manual install (macOS / Linux)
+
+Clone the repository:
 
 ```sh
 git clone https://github.com/Marinadec-kk/marinadec-s-herdr.git ~/Projects/marinadec-s-herdr
-ln -s ~/Projects/marinadec-s-herdr/mods/spaces-status ~/.config/herdr-app/mods/spaces-status
-cp ~/Projects/marinadec-s-herdr/layouts/main-status.json ~/.config/herdr-app/layouts/
+```
+
+Copy and check the files. This block stops if either destination already exists; for an existing installation, use [Update](#update).
+
+```sh
+(
+  set -eu
+  repo="$HOME/Projects/marinadec-s-herdr"
+  home="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
+
+  for target in "$home/mods/spaces-status" "$home/layouts/main-status.json"; do
+    if [ -e "$target" ] || [ -L "$target" ]; then
+      printf 'Already exists: %s. See Update or ask your agent to use another name.\n' "$target" >&2
+      exit 1
+    fi
+  done
+
+  mkdir -p "$home/mods" "$home/layouts"
+  cp -R "$repo/mods/spaces-status" "$home/mods/"
+  cp "$repo/layouts/main-status.json" "$home/layouts/main-status.json"
+  herdr-app check "$home/mods/spaces-status"
+)
+```
+
+The check should print `check passed`. With Herdr running, select the layout:
+
+```sh
 herdr-app do layout.switch --name main-status
 ```
 
-If Herdr is not running yet, start it after copying the files; the layout is in the layout picker. `ctrl-shift-l` switches back to any other layout.
-
-Check the install:
-
-```sh
-herdr-app check ~/.config/herdr-app/mods/spaces-status
-```
-
-It should print `check passed`.
-
-Or ask your Herdr agent to add `herdr.dev/layouts/Marinadec-kk/marinadec-s-herdr`.
-
-Herdr uses `HERDR_APP_HOME` instead of `~/.config/herdr-app` when set; use that path in the commands above.
+You can also select it in Herdr's layout picker. `ctrl-shift-l` switches between layouts. The commands use `HERDR_APP_HOME` when set, otherwise `~/.config/herdr-app`.
 
 ### Custom keys
 
-`keys.json` in this repository holds the `alt-shift-f` binding used with this layout: it opens [Yazi](https://github.com/sxyazi/yazi) in a right split. Merge the `global` section into `~/.config/herdr-app/keys.json`; without it the key stays unbound:
+`keys.json` in this repository holds an optional `alt-shift-f` binding: it opens [Yazi](https://github.com/sxyazi/yazi) in a right split. Ask your agent to add it, or merge the binding into the `global` section of Herdr's `keys.json` (`$HERDR_APP_HOME/keys.json` when set). Keep the other bindings; if this key is already assigned, choose another key or explicitly replace its action:
 
 ```json
 {
@@ -133,23 +168,56 @@ RECIPE.md                          the build brief: what it is and how to recrea
 
 ## Update
 
-```sh
-cd ~/Projects/marinadec-s-herdr
-git pull
+Ask your agent:
+
+```text
+Read ~/.config/herdr-app/AGENTS.md, then update my installed main-status layout from https://github.com/Marinadec-kk/marinadec-s-herdr. Use copies in Herdr's home and preserve my local customizations and saved appearance preferences.
 ```
 
-Herdr doesn't notice changes inside a symlinked mod folder, so after a `git pull` restart Herdr (or make the link again) to load the new version. Newly added fonts load on restart or the next look change; if icon glyphs are missing, switch themes once and back. The layout is a copy: copy `layouts/main-status.json` again after a layout change.
+Use your `HERDR_APP_HOME` path in the prompt when set. If installation chose different layout/mod names, give the agent those names.
+
+For a manual installation using the original names and unmodified installed files, keep the checkout and run the following with Herdr open. It replaces the installed mod folder and layout with the latest repository versions:
+
+```sh
+(
+  set -eu
+  repo="$HOME/Projects/marinadec-s-herdr"
+  home="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
+
+  git -C "$repo" pull --ff-only
+  herdr-app check "$repo/mods/spaces-status"
+  herdr-app do layout.switch --name main
+  rm -rf "$home/mods/spaces-status"
+  cp -R "$repo/mods/spaces-status" "$home/mods/"
+  cp "$repo/layouts/main-status.json" "$home/layouts/main-status.json"
+  herdr-app check "$home/mods/spaces-status"
+  herdr-app do layout.switch --name main-status
+)
+```
+
+If you removed the checkout after installation, clone it again first. A `git pull` alone updates only the checkout; both the mod and layout must be copied into Herdr's home.
+
+**Migrating an older symlink installation:** the same update block replaces the `spaces-status` symlink with a real directory. Removing the link (without a trailing slash) leaves its source checkout intact.
+
+Herdr watches the copied files for changes. Newly added fonts load on app start or the next look change; if glyphs are missing, switch themes once and back, or restart Herdr. Saved colors, avatars and fold state stay in Herdr's state files.
 
 ## Uninstall
 
+With Herdr running, switch back to `main` and remove the installed copies:
+
 ```sh
-herdr-app do layout.switch --name main
-home="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
-rm -rf "$home/mods/spaces-status"
-rm -f "$home/layouts/main-status.json"
+(
+  set -eu
+  home="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
+  herdr-app do layout.switch --name main
+  rm -rf "$home/mods/spaces-status"
+  rm -f "$home/layouts/main-status.json"
+)
 ```
 
-`shared.json` may retain `space.colors` and `spaces-status.appearance` entries. They are local preferences; appearance records are intentionally not erased when a remote machine is temporarily absent.
+Use the names chosen at installation if they differ. If you added the optional Yazi shortcut, remove that binding from Herdr's `keys.json` too.
+
+The checkout can be deleted separately. Herdr retains local preferences such as `space.colors`, `spaces-status.appearance`, fold state and layout clicks for a later reinstall.
 
 ## License
 
