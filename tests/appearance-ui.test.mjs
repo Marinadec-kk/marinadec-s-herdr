@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { APPEARANCE_KEY, ensureMachineDefaults, ensureSpaceDefaults, readAppearance, machineColor } from "../mods/spaces-status/appearance-model.js";
 import { CHARACTER_ACCENTS } from "../mods/spaces-status/character-accents.js";
+import { tint } from "../mods/spaces-status/appearance-colors.js";
 
 function element(kind) {
   const node = { kind, kids: [], props: {}, events: {} };
@@ -34,6 +35,7 @@ function environment() {
   const env = {
     inputs: [], values: new Map(), calls: new Map(), commands: [], opened: [], closed: [], writes: [],
     timers: 0, timerTasks: [], releases: 0, spawns: 0, notifications: 0, props: {}, scrolls: [], panes: [], agents: [], terminals: [], jobs: [], clipboard: [], stops: 0,
+    dark: true, theme: { foreground: "#eeeeee", ansi6: "#22a99a" },
     layout: { id: "root", children: [{ id: "sidebar", size: { px: 299 } }] },
     spaces: [
       { id: "s1", name: "Demo", named: true, machine: null, folder: "/demo", tabs: [], active: true, status: null },
@@ -74,7 +76,7 @@ function environment() {
     if (name === "spaces") return structuredClone(env.spaces);
     if (name === "machines") return [{ name: null, layout: "ready" }, { name: "pi", layout: "ready" }, { name: "small", layout: "ready" }];
     if (["agents", "terminals", "panes"].includes(name)) return structuredClone(env[name]);
-    if (name === "settings") return { dark: true, zoom: 1 };
+    if (name === "settings") return { dark: env.dark, zoom: 1 };
     if (name === "layout") return structuredClone(env.layout);
     if (name === "window") return { platform: "linux", buttons: true, titlebar: "none" };
     if (name === "home") return "/home/test";
@@ -86,7 +88,7 @@ function environment() {
     if (name === "hc" && env.hc) return env.hc(...args);
     if (name === "keys") return [{ section: "global", keys: "ctrl-shift-p", action: "app.palette" }];
     if (name === "updates") return { app: { ready: null } };
-    if (name === "theme") return new Proxy({ foreground: "#eeeeee", ansi6: "#22a99a" }, { get: (o, k) => o[k] ?? "#333333" });
+    if (name === "theme") return new Proxy(env.theme, { get: (o, k) => o[k] ?? "#333333" });
     if (name === "run") { env.commands.push(args); return null; }
     if (name === "openOverlay") { env.opened.push(args[0]); return "new-overlay"; }
     if (name === "closeOverlay") { env.closed.push(args[0]); return null; }
@@ -412,6 +414,42 @@ test("new pixel menu restores installed agents from cache and preserves launch a
 const key = (name, modifiers = {}) => ({ key: name, modifiers });
 const text = node => typeof node === "string" ? node : (node?.kids ?? []).map(text).join(" ");
 
+test("status bar names the active local or remote space, tracks renames and bounds long labels", () => {
+  const ui = chrome("status");
+  env.spaces[0].branch = "main";
+  env.spaces[1].name = "Очень длинное название проекта ".repeat(12).trim();
+  env.spaces[1].branch = "feature";
+  env.agents = [{ status: "blocked" }];
+  for (const width of [44, 76, 299]) {
+    env.layout.children[0].size.px = width;
+    for (const id of ["s1", "s2", "s3"]) {
+      for (const space of env.spaces) space.active = space.id === id;
+      const space = env.spaces.find(space => space.active), tree = ui.render();
+      const identity = find(tree, "status-space"), label = `${space.machine ?? "This computer"} → ${space.name}`;
+      assert.equal(text(identity).trim(), label);
+      assert.equal(identity.props.tooltip, label);
+      assert.equal(identity.props.max_w, 420);
+      assert.equal(identity.props.min_w, 0);
+      assert.equal(identity.kids.at(-1).props.truncate, true);
+      if (space.branch) assert.ok(text(tree).includes(space.branch));
+      assert.match(text(tree), /1 agents.*1 need you/);
+      assert.ok(find(tree, "palette"));
+    }
+  }
+  env.spaces[2].name = "Renamed space";
+  assert.match(text(find(ui.render(), "status-space")), /small → Renamed space/);
+  assert.equal(env.spawns, 0);
+  assert.deepEqual(env.writes, []);
+});
+
+test("status bar has a quiet fallback when no space is active", () => {
+  for (const space of env.spaces) space.active = false;
+  const tree = chrome("status").render(), identity = find(tree, "status-space");
+  assert.equal(text(identity).trim(), "This computer");
+  assert.equal(identity.props.tooltip, "This computer");
+  assert.doesNotMatch(text(tree), /undefined|null|→/);
+});
+
 test("machine plus creates in that machine's home; only right-click opens appearance", () => {
   const view = new Spaces(); view.init({}, env.cx);
   view.machines = [{ name: "pi", state: "connected" }];
@@ -510,6 +548,63 @@ test("rail nests saved worktrees inside their parent and both inside their own m
   assert.equal(find(view.render(), "space-wt"), undefined);
   const restarted = new Spaces(); restarted.init({}, env.cx);
   assert.equal(find(restarted.render(), "space-wt"), undefined);
+});
+
+test("rail selection is explicit in both themes and follows only the active space, including nested worktrees", () => {
+  env.spaces.push(
+    { ...env.spaces[1], id: "wt", name: "Feature", active: false, status: "blocked" },
+    { ...env.spaces[1], id: "wt-deep", name: "Nested feature", active: false, status: "done" },
+  );
+  env.values.set(APPEARANCE_KEY, ensureSpaceDefaults(env.values.get(APPEARANCE_KEY), [
+    { id: "wt", machine: "pi", worktree: true, parent: "s2" },
+    { id: "wt-deep", machine: "pi", worktree: true, parent: "wt" },
+  ]));
+  const view = new Spaces(); view.init({}, env.cx);
+  const ids = env.spaces.map(space => space.id);
+  const geometry = tree => ids.map(id => {
+    const row = find(tree, `space-${id}`);
+    return [row.props.w_full, row.props.h, row.props.pl, row.props.justify_center, row.props.items_center];
+  });
+  for (const dark of [true, false]) {
+    env.dark = dark;
+    env.theme = {
+      foreground: dark ? "#eeeeee" : "#202020", chrome: dark ? "#101820" : "#f4f1eb",
+      blocked: "#e45b78", done: "#3caa83",
+    };
+    for (const width of [44, 76, 159]) {
+      env.layout.children[0].size.px = width;
+      const before = geometry(view.render());
+      for (const id of ids) {
+        for (const space of env.spaces) space.active = space.id === id;
+        const tree = view.render(), row = find(tree, `space-${id}`), frame = find(row, `space-selection-${id}`);
+        assert.ok(frame, `Missing selection for ${id} at ${width} px, dark=${dark}`);
+        assert.equal(frame.props.border, 2);
+        assert.equal(frame.props.border_color, env.theme.foreground);
+        assert.equal(frame.props.absolute, true);
+        assert.equal(frame.props.inset_0, true);
+        assert.equal(frame.props.left, id.startsWith("wt") ? 8 : undefined);
+        assert.equal(row.props.bg, tint(env.values.get("space.colors")[id], env.theme.chrome, .24));
+        assert.deepEqual(geometry(tree), before);
+        for (const other of ids.filter(other => other !== id)) {
+          assert.equal(find(tree, `space-selection-${other}`), undefined);
+          assert.equal(find(tree, `space-${other}`).props.bg, undefined);
+        }
+        assert.equal(find(tree, "space-status-wt").props.bg, env.theme.blocked);
+        assert.equal(find(tree, "space-status-wt").props.size, 5);
+        assert.equal(find(tree, "space-status-wt-deep").props.bg, env.theme.done);
+        row.events.on_click({}, env.cx);
+        assert.deepEqual(env.commands.at(-1), ["space.select", { id }]);
+      }
+    }
+  }
+  for (const width of [160, 299]) {
+    env.layout.children[0].size.px = width;
+    const tree = view.render();
+    for (const id of ids) {
+      assert.ok(find(tree, `space-group-${id}`));
+      assert.equal(find(tree, `space-selection-${id}`), undefined);
+    }
+  }
 });
 
 test("saved creation ancestry overrides flat Git grouping in both sidebar modes after restart", () => {

@@ -268,19 +268,22 @@ class PixelBars {
     }
     status(t) {
         const space = spaces().find(s => s.active), list = agents();
+        const machine = machineLabel(space?.machine), location = space ? `${machine} → ${space.name}` : machine;
         const counts = statusCounts(list), mac = window()?.platform === "macos";
         const aliases = { cmd: mac ? "⌘" : "Super+", ctrl: mac ? "⌃" : "Ctrl+", shift: mac ? "⇧" : "Shift+", alt: mac ? "⌥" : "Alt+" };
         const binding = keys().find(k => k.section === "global" && k.action === "app.palette");
         const parts = binding?.keys.endsWith("--") ? [...binding.keys.slice(0, -2).split("-"), "-"] : binding?.keys.split("-");
         const hint = parts?.map(p => aliases[p.toLowerCase()] ?? p.toUpperCase()).join("");
-        const label = (glyph, text) => h_flex().gap(6).items_center().child(pixelIcon(glyph, t.muted)).child(text);
+        const label = (glyph, text) => h_flex().min_w(0).gap(6).items_center()
+            .child(pixelIcon(glyph, t.muted)).child(div().min_w(0).truncate().child(text));
         return rootBar(t).px(14).gap(16).border_t(UI.stroke).border_color(t.border).text_size(14)
-            .child(label(space?.machine ? "server" : "monitor", machineLabel(space?.machine)))
+            .child(label(space?.machine ? "server" : "monitor", location).id("status-space").max_w(420)
+            .text_color(t.foreground).tooltip(location))
             .when(Boolean(space?.branch), el => el.child(label("branch", space?.branch ?? "")))
-            .child(h_flex().gap(6).items_center().child(div().size(6).bg(t.dim)).child(`${counts.total} agents`)
+            .child(h_flex().flex_none().gap(6).items_center().child(div().size(6).bg(t.dim)).child(`${counts.total} agents`)
             .when(counts.blocked > 0, el => el.child(div().text_color(t.blocked).child(`· ${counts.blocked} need you`))))
-            .child(div().flex_1())
-            .child(actionRow(t, "palette", "Commands", () => run("app.palette")).h(24).text_color(t.dim)
+            .child(div().flex_1().min_w(0))
+            .child(actionRow(t, "palette", "Commands", () => run("app.palette")).flex_none().h(24).text_color(t.dim)
             .child(hint ? `[${hint}] commands` : "commands"));
     }
 }

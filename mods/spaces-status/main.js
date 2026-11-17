@@ -657,7 +657,7 @@ export default class Spaces extends View {
             .flex_none()
             .justify_center()
             .items_center()
-            .when(w.active, (el) => el.bg(tint(fill, t.chrome, .08)))
+            .when(w.active, (el) => el.bg(tint(fill, t.chrome, .24)))
             .when(!w.active, (el) => el.hover((s) => s.bg(t.hover)))
             .on_click(() => run("space.select", { id: w.id }))
             .on_mouse_down("right", (_event, cx) => {
@@ -666,9 +666,13 @@ export default class Spaces extends View {
             this.menu(w, row.g, Boolean(ctx.appearance.spaceDefaults[w.id]?.worktree));
         })
             .tooltip(`${machineLabel(w.machine)} → ${path}${ctx.appearance.spaceDefaults[w.id]?.worktree ? " · worktree" : ""} · ${i + 1}${origin ? `\n${originLabel(origin)}` : ""}`)
-            .child(renderAvatar(spaceAvatar(ctx.appearance, w.id), size.railAvatar, fill, w.name))
             .child(treeLines(tint(fill, t.chrome, .65), row, children, size.railRow))
-            .child(div().absolute().right(1)
+            // An overlay keeps selection from moving icons or tree connectors.
+            .when(w.active, el => el.child(div().id(`space-selection-${w.id}`).absolute().inset_0()
+            .when(depth > 0, frame => frame.left(8))
+            .border(UI.stroke).border_color(t.foreground)))
+            .child(renderAvatar(spaceAvatar(ctx.appearance, w.id), size.railAvatar, fill, w.name))
+            .child(div().id(`space-status-${w.id}`).absolute().right(1)
             .size(w.status === "blocked" || w.status === "done" ? 5 : 3).bg(t[w.status] ?? t.unknown));
     }
     render(cx) {
