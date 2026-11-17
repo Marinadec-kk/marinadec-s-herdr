@@ -5,6 +5,7 @@ import { exec, readTextFile, theme, settings, window } from "herdr";
 import { actionRow, secondary } from "../ui/controls.js";
 import { surface, panelHeader, emptyState } from "../ui/surfaces.js";
 import { pixelIcon, pixelButton } from "../pixel-ui.js";
+import { SPACING, FILES } from "../ui/tokens.js";
 import { PanelLifecycle, LatestRequest } from "./panel-lifecycle.js";
 import { repositoryTop, readGitStatus } from "../data/git.js";
 import { gitMarkColor } from "../presentation/git.js";
@@ -197,7 +198,7 @@ export class Files {
                 break;
             const path = prefix ? `${prefix}/${entry.name}` : entry.name, open = this.folders.has(path), mark = this.marks[joinPath(this.context?.cwd ?? "", path)];
             out.push(actionRow(t, `file-${path}`, entry.name, cx => entry.dir ? this.toggle(path, cx) : this.show(path, cx))
-                .h(28).pl(8 + depth * 18)
+                .h(FILES.row).pl(SPACING.row.inset + depth * FILES.indent)
                 .child(entry.dir ? pixelIcon(open ? "down" : "right", t.dim, 12) : div().w(12).flex_none())
                 .child(pixelIcon("file", t.muted)).child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(entry.name))
                 .when(Boolean(mark), el => el.child(secondary(t, mark).text_color(gitMarkColor(t, mark)))));
@@ -213,9 +214,10 @@ export class Files {
         return surface(t, "panel").id("files").size_full().overflow_hidden()
             .child(panelHeader(t, "Files", this.file ? pixelButton(t, "files-back", "sidebar", "Back to files", cx => { this.show(null); cx.notify(); }, { quiet: true }) : undefined)
             .child(secondary(t, this.file ?? (this.context?.cwd ? pathName(this.context.cwd) : "")).flex_1().min_w(0).truncate().text_right()))
-            .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().p(6).children(this.rows("", 0, [], t))
+            .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar()
+            .px(SPACING.panel.listInset).py(SPACING.panel.listInsetY).children(this.rows("", 0, [], t))
             .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(emptyState(t, this.error || (this.lifecycle.loading ? "Loading files…" : this.context?.cwd ? "No files" : "No folder"))))
-            .when(this.limited, el => el.child(secondary(t, "Limited to 500 entries per folder and 5,000 total").p(8)))))
-            .when(Boolean(this.file), el => el.child(this.code ? Editor.new(this.code).flex_1().min_h(0) : secondary(t, this.fileError || "Loading file…").p(12)));
+            .when(this.limited, el => el.child(secondary(t, "Limited to 500 entries per folder and 5,000 total").p(SPACING.panel.inset)))))
+            .when(Boolean(this.file), el => el.child(this.code ? Editor.new(this.code).flex_1().min_h(0) : secondary(t, this.fileError || "Loading file…").p(SPACING.panel.inset)));
     }
 }

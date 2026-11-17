@@ -4,21 +4,27 @@ A square-edged Herdr workspace with clear machine → space → agent-session hi
 
 ## What you see
 
-- **Window:** 299 px sidebar (44–480), 2 px divider, `canvas` background, ink/paper themes, hidden system titlebar, macOS traffic lights `[12,16]`. Brand and tabs are both 42 px high. Footer 69 px, bottom status 28 px.
-- **Machine groups:** local first then remote names. A 2 px frame blends the machine color into `chrome` at 40%; fill at 3.5%. Groups have 12 px separation and 4 px inner padding. With only this computer, the expanded sidebar omits its card; the rail always shows machine membership.
+- **Window:** 299 px sidebar (44–480), 2 px divider, `canvas` background, OpenCode terminal dark/paper light themes, hidden system titlebar, macOS traffic lights `[12,16]`. Brand and tabs are both 42 px high. Footer 70 px, bottom status 28 px.
+- **Machine groups:** local first then remote names. A 2 px frame blends the machine color into `chrome` at 40%; fill at 3.5%. Groups have 12 px separation and 4 px inner padding when expanded; rail rows are full-bleed inside the frame with paired 2 px outside margins. With only this computer, the expanded sidebar omits its card; the rail always shows machine membership.
 - **Machine header:** 44 px, 36 px character, original-case 16 px semibold name, connection badge and offline explanation. A real blocked-agent `! N` count remains when folded. 28 px add/fold targets with 18 px glyphs. No settings gear; appearance opens on right-click. Offline characters fade to half opacity.
-- **Spaces:** a group wraps the space and its agent sessions. Border 2 px on every side, bottom gap 4 px. Border tint 22% inactive/60% active; background 2.5%/8%. Ordinary rows are 32 px, with 8 px padding/gaps, a 20 px Sharp icon, 14 px name, and worktree/fold buttons with identical 24 px targets/14 px glyphs.
+- **Spaces:** a group wraps the space and its agent sessions. Border 2 px and paired vertical inset 4 px; the parent owns the 4 px gap between groups. Border tint 22% inactive/60% active; background 2.5%/8%. Ordinary rows are 32 px, with 8 px padding/gaps, a 20 px Sharp icon, 14 px name, and worktree/fold buttons with identical 24 px targets/14 px glyphs.
 - **Worktree size tier:** 28 px rows, 16 px icons, 12 px names and 20 px action targets/10 px glyphs. Like the machine → space step, titles shrink by 2 px and actions by 4 px. Recorded source captions add 18 px to the row. Every worktree uses this tier, including worktree-from-worktree and a worktree whose parent is unavailable; depth only adds indentation (12 px per level, capped at six).
 - **Action alignment:** all three levels use two centered 28 px slots with a 4 px gap. The machine header compensates for the space's 2 px frame. `+` and worktree buttons share one x-coordinate, fold buttons share the other; empty slots retain geometry.
-- **Sessions:** 28 px rows, left/right padding 16/8, gap 8, 2 px marker, harness icon, 14 px name, 12 px sub-agent count, status centered in the shared 28 px end column. Active fill is 20% of the space color; no extra nested separator frames.
+- **Sessions:** 28 px rows, left/right padding 16/8 (base inset plus hierarchy indent), gap 8, 2 px marker, harness icon, 14 px name, 12 px sub-agent count, status centered in the shared 16 px end column. Active fill is 20% of the space color; no extra nested separator frames.
 - **Rail:** below 160 px, tinted 2 px machine cards show 28 px characters, 18 px space icons and 14 px worktree icons. Every frame, identity rail and tree connector is 2 px thick. Parent spaces and their linked worktrees share tree connectors with terminating elbows sized to each row. Two connector lanes fit arbitrary ancestry in the 44 px rail; hover carries the full path and recorded origin. Machine/space/worktree rows are 36/32/28 px high; nested worktrees stay 28 px. Saved relationships survive unavailable Git. Sessions and Git tails are hidden.
 - **Rail selection:** only the active space/worktree gets a 2 px `foreground` marker and 24% fill. The status has its own 10 px slot; it never touches the marker or avatar.
-- **Status bar:** starts with `machine → space name` in `foreground`, capped at 420 px with truncation and a full-label tooltip. It follows space switches and renames in either sidebar mode; the branch, agent counts and Commands action remain.
-- **Work area:** 8 px padding/gaps, square panes, 2 px inactive/focus borders (color changes with focus), 32 px pane header. Header actions reserve their width while hidden, avoiding path movement on hover. Tab labels allow up to 240 px. Dividers are 2 px.
+- **Status bar:** starts with `machine → space name` in `foreground`, capped at 420 px with truncation and a full-label tooltip. It follows space switches and renames in either sidebar mode. At 500 px and below hide branch/Commands; at 300 px and below also hide agent counts.
+- **Work area:** 8 px padding/gaps, square panes, 2 px inactive/focus borders (color changes with focus), 32 px pane header. Program identity → status → path → actions. Header actions reserve their width while hidden, avoiding path movement on hover. A focused header reveals controls with Enter/Space and hides them with Escape; below 260 px use one pane-menu control. Tab labels allow up to 240 px. Dividers are 2 px.
 - **Shared surfaces:** search, appearance, tab rename, close confirmations, worktrees, machine-add, terminal menus, notifications and Files/Changes use the same controls and templates. App-owned Settings, palette, Welcome, What's new and internal dialog entrypoints retain Herdr's presentation.
 - **Controls:** square 2 px frames, 24 px icon targets (28 on machine headers, 20 on worktree rows), 32 px buttons/menu rows, 14 px program logos, UI 14/secondary 12. Controls consume nested down/up/click gestures and support keyboard focus and Enter/Space. Menus skip disabled items and reveal keyboard selection.
 
 ## How it behaves
+
+### Shared spacing and palette
+
+`ui/tokens.ts` owns the spacing scale, semantic component recipes and fixed geometry separately. Prefer paired `px`/`py` or `p`; each boundary has one owner. The rail centers a reserved avatar/status cluster within the actual card interior, with separate selection/tree lanes. Keep hierarchy and platform exclusions as named/derived geometry, not unexplained local offsets. Shared roles feed controls, surfaces, sidebar, chrome, gallery and views; native owned layout metrics are synchronized at build time.
+
+Dark mode adapts the pinned OpenCode V2 terminal `opencode` palette: background `#0a0a0a`, chrome/dialog `#141414`, raised `#1e1e1e`, text `#eeeeee`, interactive `#fab283`. Working/blocked/done/idle use warning/error/success/muted. Character-derived identities do not change. Ship `themes/opencode-tui.json` and its `OpenCode-LICENSE.txt`; light mode remains `paper`. ANSI colors preserve Herdr 0.1.16 ink, because OpenCode's default theme defines no ANSI-16.
 
 ### Colors and identities
 
@@ -66,12 +72,12 @@ Explicit tab names always win; otherwise sidebar, tabs and search use the same a
 Installation follows the target Herdr home's `AGENTS.md`: read the files, copy `layouts/main-status.json` and the complete `mods/spaces-status/` folder (including compiled JS, fonts and icons), merge `keys.main-status.json` with the person's keys, check the installed mod, then select the layout. The repository is only an installation/update source. `keys.json` is a separate optional Yazi shortcut. The layout-scoped Ctrl+Shift+K/F2/Shift+F2 routes are consumed only by the sidebar copy.
 
 ```
-root (row, canvas, divider 1, ink/paper, titlebar none,
+root (row, canvas, divider 2, opencode-tui/paper, titlebar none,
       font Liberation Mono 14, ui_font Liberation Sans, terminal_padding [14,12])
 ├─ sidebar (299 px, min 44, max 480)
 │  ├─ brand (42 px, spaces-status chrome=brand)
 │  ├─ spaces (weight 1, min 90, spaces-status)
-│  └─ footer (69 px, spaces-status chrome=footer)
+│  └─ footer (70 px, spaces-status chrome=footer)
 └─ work
    ├─ tabs (42 px, spaces-status chrome=tabs)
    ├─ work-body (padding/gap 8)
@@ -86,7 +92,8 @@ root (row, canvas, divider 1, ink/paper, titlebar none,
 - `appearance-avatar.ts`: one PNG-frame/Sharp-font renderer; `avatar-labels.ts`: friendly names.
 - `appearance-editor.ts`: specialized editors and space context menu.
 - `pixel-chrome.ts`, `pixel-menu.ts`, `pixel-ui.ts`: title/footer/status bars, tabs, pane controls, menus and bitmap/status glyphs.
-- `ui/`: controls, Menu, Dialog/Panel, EntityRow and geometry. `tokens.ts` owns the 2 px `UI.stroke`; `hierarchy.ts` owns aligned action slots and tree connectors. `scripts/sync-ui-layout.mjs` applies that same stroke to layout JSON at build time. `presentation/`: labels, status words/counts, read-only identity projections and cycle-safe ancestry ordering. `overlays.ts`: frame-free opening, viewport caps, explicit targets and shared sizes.
+- Original bitmap cells are generated as one compound-path SVG per icon, not separate painted rectangles. Convert window-logical measurements back through app zoom before using design-size breakpoints or gallery column counts.
+- `ui/`: controls, Menu, Dialog/Panel, EntityRow and geometry. `tokens.ts` owns spacing recipes and fixed geometry; `hierarchy.ts` derives aligned actions, centered rail slots and connectors. `scripts/sync-ui-layout.mjs` applies owned frame/spacing/header metrics to layout JSON at build time. `presentation/`: labels, status words/counts, read-only identity projections and cycle-safe ancestry ordering. `overlays.ts`: frame-free opening, viewport caps, explicit targets and shared sizes.
 - `data/`: ref-only repository discovery, Git execution and bounded NUL status parsing; paths and machine/checkout keys; validated machine discovery/errors; indexed, cycle-safe live descendant counts. Sidebar and search count each descendant once across all top-level roots, stopping at finished children. Git paths retain whitespace, newlines and POSIX backslashes; Windows separators and root paths normalize consistently.
 - Static space/tab menu definitions in `presentation/menus.ts` drive rendering and opening height. `ui/surfaces.ts` shares panel headers, dialog focus/Escape/header handling and error/empty-state presentation.
 - `views/`: dedicated picker, rename/close, worktree, machine-add, terminal-menu, toast, Files and Changes controllers. Both panels share `PanelLifecycle`: 10-second polling, coalesced refreshes, context-identity guards, local watch cancellation and close cleanup. A return to a previously shown folder or preview cannot accept an older pending result. Files releases its native editor. Status reads retain limits (5,000 Files marks / 1,000 Changes rows), and every unmerged pair, including AA/DD, uses the same conflict mark/color. Git/SSH/read limits and local/remote behavior are adapted from Herdr 0.1.16 with Apache attribution.

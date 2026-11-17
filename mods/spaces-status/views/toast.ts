@@ -7,7 +7,7 @@ import type { Theme } from "../appearance-model.js";
 import { button, interactive } from "../ui/controls.js";
 import { surface } from "../ui/surfaces.js";
 import { pixelButton } from "../pixel-ui.js";
-import { UI } from "../ui/tokens.js";
+import { UI, SPACING } from "../ui/tokens.js";
 
 export class Toast {
   private copied = false;
@@ -18,7 +18,7 @@ export class Toast {
     const login = /^([a-z0-9][a-z0-9_.-]{0,31}) needs login; run hc machine login \1$/.exec(body);
     const command = login ? `hc machine login ${login[1]}` : "";
     const color = { error: t.blocked, warning: t.working, success: t.done }[String(p.level)] ?? t.accent;
-    return interactive(surface(t, "bar").id("toast").size_full().px(12).gap(12).bg(t.popover).border(UI.stroke).border_color(t.border),
+    return interactive(surface(t, "bar").id("toast").size_full().px(SPACING.toast.inset).gap(SPACING.toast.gap).bg(t.popover).border(UI.stroke).border_color(t.border),
       t, title, () => {
         const action = record(p.action);
         if (typeof action.name === "string") run(action.name, record(action.args));
@@ -28,7 +28,7 @@ export class Toast {
       .child(v_flex().flex_1().min_w(0)
         .child(div().truncate().font_semibold().child(login ? `${login[1]} needs a login` : title))
         .when(!login && Boolean(body), el => el.child(div().truncate().text_size(12).text_color(t.muted).tooltip(body).child(body)))
-      .when(Boolean(login), el => el.child(h_flex().gap(8).items_center()
+      .when(Boolean(login), el => el.child(h_flex().gap(SPACING.control.gap).items_center()
         .child(div().truncate().text_size(12).tooltip(command).child(command))
         .child(button(t, "toast-login-copy", this.copied ? "Copied" : "Copy", cx => {
           cx.write_to_clipboard(command); this.copied = true; cx.notify();

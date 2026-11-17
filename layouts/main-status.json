@@ -50,7 +50,7 @@
             }
           },
           "size": {
-            "px": 69
+            "px": 70
           }
         }
       ],
@@ -192,6 +192,6 @@
   ],
   "theme": {
     "light": "paper",
-    "dark": "ink"
+    "dark": "opencode-tui"
   }
 }

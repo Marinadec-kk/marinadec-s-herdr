@@ -1,18 +1,21 @@
-import { openOverlay, props, settings, spaces, run } from "herdr";
+import { openOverlay, props, spaces, run } from "herdr";
 import type { AppearanceTarget } from "./appearance-model.js";
 import { record } from "./appearance-model.js";
 import { menuHeight } from "./ui/tokens.js";
 import { spaceMenu, TAB_MENU } from "./presentation/menus.js";
+import { uiScale } from "./ui/geometry.js";
 
 export const overlayProps = (raw: unknown): Record<string, unknown> => ({ ...record(raw), ...record(props()) });
 type OverlayOptions = { kind?: "dialog" | "popup"; width: number; height?: number; at?: "top" | "pointer"; offset?: number };
 export function openSurface(data: Record<string, unknown>, options: OverlayOptions): void {
   const size = typeof window !== "undefined" ? window.viewport_size() : { width: 1000, height: 900 };
-  const zoom = settings().zoom, scale = typeof zoom === "number" && zoom > 0 ? zoom : 1;
-  const width = Math.max(160, Math.min(options.width, size.width / scale - 32));
+  const scale = uiScale();
+  const width = Math.min(options.width, Math.max(1, size.width / scale - 32));
+  const height = options.height ? Math.min(options.height, Math.max(1, size.height / scale - 32)) : undefined;
+  const top = Math.max(0, Math.min(options.offset ?? 42, size.height / scale - (height ?? 0) - 16));
   openOverlay({ mod: "spaces-status", kind: options.kind ?? "dialog", frame: "none", width,
-    ...(options.at ? { at: options.at === "top" ? { x: (size.width / scale - width) / 2, y: options.offset ?? 42 } : options.at } : {}),
-    ...(options.height ? { height: Math.max(100, Math.min(options.height, size.height / scale - 32)) } : {}),
+    ...(options.at ? { at: options.at === "top" ? { x: (size.width / scale - width) / 2, y: top } : options.at } : {}),
+    ...(height ? { height } : {}),
     props: data });
 }
 export function openAppearance(target: AppearanceTarget): void {

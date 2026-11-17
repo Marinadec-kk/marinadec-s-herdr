@@ -6,7 +6,7 @@ import { button, secondary, textInput } from "../ui/controls.js";
 import { dialogFrame, dialogFocus, dialogError, scrollBody } from "../ui/surfaces.js";
 import { pixelIcon, pixelStatus } from "../pixel-ui.js";
 import { tint } from "../appearance-colors.js";
-import { UI } from "../ui/tokens.js";
+import { UI, SPACING } from "../ui/tokens.js";
 import { loadMachines, machineError } from "../data/machines.js";
 const shellArg = (target) => /^[a-z0-9_@%+=:,./-]+$/i.test(target) ? target : "'" + target.replace(/'/g, "'\\''") + "'";
 async function includeFiles(value) {
@@ -159,18 +159,18 @@ export class MachineAdd {
         });
     }
     message(t, target) {
-        return v_flex().gap(8).px(8).pb(8).child(secondary(t, this.state[target]).text_color(t.blocked))
+        return v_flex().gap(SPACING.row.gap).p(SPACING.row.inset).child(secondary(t, this.state[target]).text_color(t.blocked))
             .when(this.pending.has(target), el => el.child(this.copy(t, `ma-copy-${target}`, `hc machine add ${shellArg(target)}`)));
     }
     row(t, target, label, detail) {
         const machine = this.find(target), state = this.state[target], mac = this.macs[target];
-        const card = () => v_flex().p(12).gap(8).border(UI.stroke).border_color(tint(t.blocked, t.popover, .4)).bg(tint(t.blocked, t.popover, .06));
+        const card = () => v_flex().p(SPACING.dialog.gap).gap(SPACING.row.gap).border(UI.stroke).border_color(tint(t.blocked, t.popover, .4)).bg(tint(t.blocked, t.popover, .06));
         const command = `sudo loginctl enable-linger -- ${shellArg(machine?.logout_linger_user ?? "<user>")}`;
-        return v_flex().flex_none().gap(8)
-            .child(h_flex().h(44).px(8).gap(8).items_center().child(pixelIcon("server", t.muted))
+        return v_flex().flex_none().gap(SPACING.row.gap)
+            .child(h_flex().h(44).px(SPACING.row.inset).gap(SPACING.row.gap).items_center().child(pixelIcon("server", t.muted))
             .child(v_flex().flex_1().min_w(0).child(div().truncate().child(label)).child(secondary(t, detail).truncate()))
             .child(machine ? secondary(t, "Added").text_color(t.ansi2) : state === "adding"
-            ? h_flex().gap(8).items_center().child(pixelStatus(t, "working")).child(secondary(t, "Connecting…"))
+            ? h_flex().gap(SPACING.row.gap).items_center().child(pixelStatus(t, "working")).child(secondary(t, "Connecting…"))
             : button(t, `ma-add-${target}`, "Add", cx => this.add(target, cx))))
             .when(Boolean(state && state !== "adding"), el => el.child(this.message(t, target)))
             .when(Boolean(mac), el => el.child(card()
@@ -198,7 +198,7 @@ export class MachineAdd {
             .children((this.hosts ?? []).filter(h => !this.find(h.alias)).map(h => this.row(t, h.alias, h.alias, [h.user, h.hostname].filter(Boolean).join("@") || h.aliases.join(", "))))
             .children(this.added.map(m => this.row(t, m.target, m.name, m.target)))
             .when(Boolean(this.error), el => el.child(dialogError(t, this.error))))
-            .child(h_flex().flex_none().gap(8).child(textInput(t, this.input).flex_1().min_w(0))
+            .child(h_flex().flex_none().gap(SPACING.control.gap).child(textInput(t, this.input).flex_1().min_w(0))
             .child(button(t, "ma-add-typed", "Add", cx => this.add(target, cx), { selected: true, disabled: !target || this.state[target] === "adding" || Boolean(this.find(target)) })))
             .when(Boolean(target && this.state[target]), el => el.child(this.message(t, target)));
     }

@@ -14,7 +14,8 @@ import { spaceMenu } from "./presentation/menus.js";
 import { openAppearance, openWorktree, closeSpace, overlayProps } from "./overlays.js";
 import { machineLabel } from "./presentation/labels.js";
 import { CHARACTER_ACCENTS } from "./character-accents.js";
-import { UI } from "./ui/tokens.js";
+import { UI, SPACING, GALLERY } from "./ui/tokens.js";
+import { uiScale } from "./ui/geometry.js";
 export { openAppearance, openSpaceMenu } from "./overlays.js";
 const PAGE_SIZE = 48;
 const CATEGORIES = [...new Set(MATERIAL_ICONS.flatMap(icon => icon.categories))].sort();
@@ -118,10 +119,10 @@ class AppearanceEditor {
                 cx.notify();
             }
         };
-        const gallery = h_flex().id("avatar-gallery").flex_wrap().gap(6).track_focus(this.gallery).tab_index(0)
+        const gallery = h_flex().id("avatar-gallery").justify_center().track_focus(this.gallery).tab_index(0)
             .role("list_box").accessibility_label(isMachine ? "Characters" : "Icons")
             .on_size_change((size, cx) => {
-            const columns = Math.max(1, Math.floor((size.width + 6) / 54));
+            const columns = Math.max(1, Math.floor((size.width / uiScale() + GALLERY.gap) / (GALLERY.cell + GALLERY.gap)));
             if (columns !== this.columns) {
                 this.columns = columns;
                 cx.notify();
@@ -139,16 +140,19 @@ class AppearanceEditor {
                 return;
             cx.stop_propagation();
         })
-            .children(shown.map((item, index) => {
+            // Center the complete column grid, not each incomplete row independently:
+            // keyboard up/down must still land in the same visual column.
+            .child(h_flex().id("avatar-grid").w(this.columns * (GALLERY.cell + GALLERY.gap) - GALLERY.gap).max_w_full()
+            .flex_wrap().gap(GALLERY.gap).children(shown.map((item, index) => {
             const selected = JSON.stringify(item.avatar) === JSON.stringify(avatar);
-            return div().id(item.id).size(48).flex_none().flex().items_center().justify_center()
+            return div().id(item.id).size(GALLERY.cell).flex_none().flex().items_center().justify_center()
                 .border(UI.stroke).border_color(selected ? color : t.border).bg(selected ? tint(color, t.popover, .15) : t.raised)
                 .when(this.gallery.is_focused() && index === this.cursor, el => el.border_color(t.foreground))
                 .role("list_box_option").aria_selected(selected).accessibility_label(item.label)
                 .tooltip(item.label).cursor_pointer().hover(el => el.bg(t.hover))
                 .on_click((_event, cx) => { this.gallery.focus(); select(index, cx); })
                 .child(renderAvatar(item.avatar, isMachine ? 36 : 24, color, label));
-        }));
+        })));
         const colorNote = field(isMachine ? "Group color follows the character’s accent."
             : worktree ? "Worktree · parent color · fixed Git tree icon" : `Color assigned by ${machineLabel(machine)}`);
         return dialogFrame(t, "appearance-editor", isMachine ? "Machine appearance" : "Space appearance", this.handle, () => closeOverlay(this.overlay), "appearance-close", (event, cx) => {
@@ -160,7 +164,7 @@ class AppearanceEditor {
             .child(scrollBody("appearance-scroll", this.scroll)
             .when(!isMachine, el => el.child(field("Name")).child(input(this.name)))
             .child(colorNote)
-            .when(!worktree, el => el.child(h_flex().gap(8).items_center()
+            .when(!worktree, el => el.child(h_flex().gap(SPACING.row.gap).items_center()
             .child(div().flex_1().text_size(14).font_semibold().child(isMachine ? "Character" : "Icon"))
             .child(button(t, isMachine ? "avatar-auto" : "appearance-reset", "Default", cx => { this.avatar = undefined; cx.notify(); }, !this.avatar)
             .tooltip("Use the saved random choice")))
@@ -172,7 +176,7 @@ class AppearanceEditor {
             }
         }).child(input(this.search)))
             .when(!isMachine, el => el.child(button(t, "categories", this.category === "all" ? "Categories" : this.category, cx => { this.categoriesOpen = !this.categoriesOpen; cx.notify(); }, this.categoriesOpen)))
-            .when(!isMachine && this.categoriesOpen, el => el.child(h_flex().flex_wrap().gap(4).children(["all", ...CATEGORIES].map(category => button(t, `category-${category}`, category, cx => {
+            .when(!isMachine && this.categoriesOpen, el => el.child(h_flex().flex_wrap().gap(SPACING.metadata.gap).children(["all", ...CATEGORIES].map(category => button(t, `category-${category}`, category, cx => {
             this.category = category;
             this.page = this.cursor = 0;
             this.categoriesOpen = false;
@@ -180,12 +184,12 @@ class AppearanceEditor {
         }, category === this.category)))))
             .child(gallery)
             .when(!shown.length, el => el.child(field("No matches.")))
-            .when(pages > 1, el => el.child(h_flex().gap(8).items_center()
+            .when(pages > 1, el => el.child(h_flex().flex_wrap().gap(SPACING.row.gap).items_center()
             .child(button(t, "icons-prev", "Previous", cx => { this.page = Math.max(0, page - 1); this.cursor = 0; cx.notify(); }))
-            .child(div().flex_1().text_size(12).text_color(t.muted).child(`${choices.length} icons · ${page + 1}/${pages}`))
+            .child(div().flex_1().min_w(0).text_size(12).text_color(t.muted).child(`${choices.length} icons · ${page + 1}/${pages}`))
             .child(button(t, "icons-next", "Next", cx => { this.page = Math.min(pages - 1, page + 1); this.cursor = 0; cx.notify(); }))))))
-            .child(v_flex().flex_none().gap(8).p(10).border(UI.stroke).border_color(tint(color, t.popover, .45)).bg(tint(color, t.popover, .06))
-            .child(h_flex().gap(10).items_center()
+            .child(v_flex().flex_none().gap(SPACING.row.gap).p(SPACING.panel.inset).border(UI.stroke).border_color(tint(color, t.popover, .45)).bg(tint(color, t.popover, .06))
+            .child(h_flex().gap(SPACING.row.gap).items_center()
             .child(renderAvatar(avatar, isMachine ? 36 : 24, color, label))
             .child(div().flex_1().min_w(0).truncate().font_semibold().child(label))))
             .when(Boolean(this.error), el => el.child(dialogError(t, this.error)))

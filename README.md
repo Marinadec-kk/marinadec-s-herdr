@@ -4,6 +4,8 @@ A pixel-art workspace for the [Herdr](https://herdr.dev) desktop app. Every agen
 
 - **Liberation typography.** Liberation Mono 14 for terminals and Liberation Sans with a 14 px base size for the interface. Both families are bundled, including regular, bold, italic and bold italic faces with Cyrillic support. Headings, hints and avatar glyphs keep their contextual sizes.
 - **Pixel chrome.** Square controls, bitmap glyphs and sharp pane frames across the sidebar, tabs, pane headers, brand/footer and status bar. Fonts are configured by this layout and its mod.
+- **Stable headers.** Pane status follows the program identity, before the path. Hover controls reserve their space; Enter/Space on a focused header reveals them for keyboard use, Escape hides them. Below 260 px they become a pane menu.
+- **Shared spacing.** Paired insets and named gaps come from `ui/tokens.ts`. Cards own their padding, lists own the gaps between cards, and compact identity/status slots center inside the frame rather than the full sidebar.
 - **Clear hierarchy.** Shared 2 px frames surround machines, spaces, controls and panes. Machines have 12 px separation; spaces have 4 px separation. Sessions sit inside their space; the active session gets the strongest fill.
 
 - **Inline sessions.** A tab gets a row only if it runs Claude Code, OpenCode, Pi or another agent. The row shows the harness icon, the tab's name, `+N` for sub-agents and the tab's own status.
@@ -14,6 +16,7 @@ A pixel-art workspace for the [Herdr](https://herdr.dev) desktop app. Every agen
 - **Compact rail.** Below 160 px, 28 px machine characters head tinted cards. Spaces use 32 px rows and worktrees 28 px rows, with 2 px connecting tree lines ending at each last child. The active space has a contrasting 2 px left marker and stronger fill. Its status has a separate slot, clear of avatars and tree lines.
 - **Consistent states.** A pulsing hourglass means working, `!` needs you, a check means done, and an outlined square means idle. Every state has fixed bounds. No agents means an empty slot, not a gray dot.
 - **Current space at a glance.** The bottom status bar keeps `machine → space name` visible in both sidebar modes. Long labels truncate and show their full name on hover.
+  Narrow status bars omit branch/command hints, then agent counts, before sacrificing the current-space label.
 - **Navigation.** Click to switch, right-click for the space menu, drag to reorder. Branch/ahead/behind tails appear at sidebar widths of 340 px and above.
 
 ## Install
@@ -28,12 +31,13 @@ Read ~/.config/herdr-app/AGENTS.md, then add this layout: https://github.com/Mar
 
 If you set `HERDR_APP_HOME`, use the `AGENTS.md` in that folder instead.
 
-This follows the [Herdr gallery](https://herdr.dev/gallery/) installation flow. Your agent reads `RECIPE.md` and the files, copies the layout and its complete mod folder into Herdr's home, checks the mod, and switches to the new layout:
+This follows the [Herdr gallery](https://herdr.dev/gallery/) installation flow. Your agent reads `RECIPE.md` and the files, copies the layout, complete mod folder and bundled theme/license into Herdr's home, checks the mod, and switches to the new layout:
 
 ```text
 ~/.config/herdr-app/
 ├── layouts/main-status.json
-└── mods/spaces-status/       JavaScript, fonts, icons and helper modules
+├── mods/spaces-status/       JavaScript, fonts, icons and helper modules
+└── themes/                   opencode-tui.json + OpenCode-LICENSE.txt
 ```
 
 Herdr loads these copies directly. The repository checkout is only a download/update source, so it can be removed after installation. Compiled JavaScript and assets are included; no npm install or build is needed. If a destination name is already taken, the agent follows Herdr's naming-conflict rules and adjusts the new copy's references.
@@ -54,16 +58,17 @@ Copy and check the files. This block stops if either destination already exists;
   repo="$HOME/Projects/marinadec-s-herdr"
   home="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
 
-  for target in "$home/mods/spaces-status" "$home/layouts/main-status.json"; do
+  for target in "$home/mods/spaces-status" "$home/layouts/main-status.json" "$home/themes/opencode-tui.json" "$home/themes/OpenCode-LICENSE.txt"; do
     if [ -e "$target" ] || [ -L "$target" ]; then
       printf 'Already exists: %s. See Update or ask your agent to use another name.\n' "$target" >&2
       exit 1
     fi
   done
 
-  mkdir -p "$home/mods" "$home/layouts"
+  mkdir -p "$home/mods" "$home/layouts" "$home/themes"
   cp -R "$repo/mods/spaces-status" "$home/mods/"
   cp "$repo/layouts/main-status.json" "$home/layouts/main-status.json"
+  cp "$repo/themes/opencode-tui.json" "$repo/themes/OpenCode-LICENSE.txt" "$home/themes/"
   herdr-app check "$home/mods/spaces-status"
 )
 ```
@@ -128,8 +133,8 @@ For pixel chrome too, use the supplied layout: it places this same mod with `pro
 
 - **Colors:** `character-accents.ts` contains accents extracted offline from the displayed first frame of each character. `appearance-colors.ts` derives 12 OKLCH shades with light/dark variants and gamut mapping. Changing the character updates its family without reallocating icons or tone slots. `space.colors` remains published for compatibility; our search only reads identities/colors and never prunes or allocates them.
 - **Sidebar width:** the layout starts at 299 px; drag the divider or edit the `sidebar` size in `layouts/main-status.json`. Below 160 px the rail takes over.
-- **Frames and controls:** `ui/tokens.ts` owns `UI.stroke` (2 px), shared sizes and the three fixed `HIERARCHY` tiers; `ui/hierarchy.ts` owns hierarchy actions and tree connectors. Build synchronizes native layout border/divider widths from the same token.
-- **Theme:** the layout pins `{ "light": "paper", "dark": "ink" }`; change the root `theme` or use the theme picker.
+- **Frames and spacing:** `ui/tokens.ts` is the single source for `SPACE`, semantic `SPACING` recipes, `CHROME`, gallery/file geometry, strokes and hierarchy tiers. `ui/hierarchy.ts` derives frame compensation and rail slots. Edit the role, rebuild, and both components and owned native-layout fields update. Structural tree/platform offsets are not generic padding.
+- **Theme:** the layout pins `{ "light": "paper", "dark": "opencode-tui" }`. The dark theme uses OpenCode **terminal V2** backgrounds (`#0a0a0a`, `#141414`, `#1e1e1e`) and feedback colors, not the desktop/web palette. Edit `themes/opencode-tui.json`; machine/space accents stay character-derived. ANSI-16 retains Herdr 0.1.16 ink. See [`themes/README.md`](themes/README.md) for source/mapping/license details.
 - **Fonts:** the layout sets `font: "Liberation Mono"`, `font_size: 14` and `ui_font: "Liberation Sans"`. The mod's `UI_FONT` and `UI_FONT_SIZE` in `appearance-model.ts` set its base UI typography to Liberation Sans 14; rebuild after changing them.
 - **Saved appearance:** schema v2 in `spaces-status.appearance` stores profiles and defaults by space ID or machine identity (`local` / `remote:<name>`). Existing character choices and compatible Material names remain; old Material styles become Sharp. Legacy machine colors are readable but no longer determine the displayed color. Worktree icons are locked.
 - **Allocation:** random characters are reserved across machines, random icons within each machine. Shade slots are allocated from unused slots first. Existing/offline identities retain their defaults; exhausted pools reuse least-used candidates. Renaming a connection changes its identity key.
@@ -149,6 +154,10 @@ npm run test
 `npm run check` type-checks without writing. The `tsconfig.json` follows the settings Herdr writes into every mod's `jsconfig.json`: `strict` with `strictNullChecks` off, because a View assigns its state in `init` and TypeScript cannot see that as definite assignment. The declaration files in `mods/spaces-status/types/` are Herdr's own, snapshotted from 0.1.15; copy a newer one over from `~/.config/herdr-app/mods/<any mod>/gpui-kit.d.ts` when the mod moves to a newer Herdr.
 
 Appearance, chrome, UI-kit, presentation and view-controller modules additionally pass `tsconfig.appearance.json` with `strictNullChecks: true`. Tests use Node's built-in runner and host mocks, without a test framework or a running Herdr. `npm run sync-icons` and `npm run sync-plushies` are development-only asset importers. After changing character assets, run `npm run character-accents` to regenerate their accents offline; ordinary build/install never accesses the network.
+
+`ui/glyphs.ts` defines the original bitmaps. Build generates one compound-path SVG per icon, avoiding seams between separately painted cells; check verifies those assets. For isolated native screenshots of production UI at different zoom/display scales, see [`preview/ui/`](preview/ui/README.md).
+
+Checks reject local nonzero padding/margin/gap literals and numeric spacing shortcuts. A compiler emit captured in memory verifies all shipping JavaScript against TypeScript; layout/icon checks read canonical TS tokens, so mutually stale JS/JSON cannot hide a source change. Validation never rewrites artifacts.
 
 The API baseline remains Herdr 0.1.15; the current validation target is Herdr 0.1.16 with hc 0.1.21. A check on 0.1.16 does not replace a runtime compatibility test on 0.1.15.
 
@@ -179,7 +188,10 @@ mods/spaces-status/icons/plushies/  32 original SS14 PNGs, metadata and CREDITS.
 tests/                            pure-model and mocked UI regression tests
 scripts/sync-material-icons.mjs    development-only icon asset importer
 scripts/sync-plushies.mjs          development-only SS14/Tiny5 importer
-scripts/sync-ui-layout.mjs         derives native layout frame widths from UI.stroke
+scripts/sync-ui-layout.mjs         derives owned native frame/spacing/header metrics
+scripts/check-ui-artifacts.mjs     checks compiler output in memory, without writes
+scripts/check-ui-spacing.mjs       rejects local nonzero spacing literals/shortcuts
+themes/opencode-tui.json           OpenCode V2 terminal dark palette adaptation
 package.json                       npm run build: tsc, no runtime dependencies
 keys.json                          the optional alt-shift-f / Yazi binding
 keys.main-status.json              layout-scoped search and rename bindings to merge
@@ -210,6 +222,8 @@ For a manual installation using the original names and unmodified installed file
   rm -rf "$home/mods/spaces-status"
   cp -R "$repo/mods/spaces-status" "$home/mods/"
   cp "$repo/layouts/main-status.json" "$home/layouts/main-status.json"
+  mkdir -p "$home/themes"
+  cp "$repo/themes/opencode-tui.json" "$repo/themes/OpenCode-LICENSE.txt" "$home/themes/"
   herdr-app check "$home/mods/spaces-status"
   herdr-app do layout.switch --name main-status
 )
@@ -232,6 +246,7 @@ With Herdr running, switch back to `main` and remove the installed copies:
   herdr-app do layout.switch --name main
   rm -rf "$home/mods/spaces-status"
   rm -f "$home/layouts/main-status.json"
+  rm -f "$home/themes/opencode-tui.json" "$home/themes/OpenCode-LICENSE.txt"
 )
 ```
 
@@ -241,4 +256,4 @@ The checkout can be deleted separately. Herdr retains local preferences such as 
 
 ## License
 
-MIT for original code/art (`LICENSE`). Inherited Herdr layout/sidebar/chrome code retains Apache 2.0 (`LICENSE-APACHE`), as do Google's Material Icons. Liberation Fonts and Tiny5 are SIL OFL 1.1 (`mods/spaces-status/fonts/OFL-Liberation.txt` and `mods/spaces-status/fonts/OFL-Tiny5.txt`). SS14 plush sprites retain their individual **CC BY-SA 3.0/4.0 or CC0** licenses; they are **not** covered by this repository's MIT license. See `icons/plushies/CREDITS.md`, original metadata and pinned source hashes. The non-commercial vulp set is excluded.
+MIT for original code/art (`LICENSE`). The OpenCode palette adaptation retains its upstream MIT notice (`themes/OpenCode-LICENSE.txt`). Inherited Herdr layout/sidebar/chrome code retains Apache 2.0 (`LICENSE-APACHE`), as do Google's Material Icons. Liberation Fonts and Tiny5 are SIL OFL 1.1 (`mods/spaces-status/fonts/OFL-Liberation.txt` and `mods/spaces-status/fonts/OFL-Tiny5.txt`). SS14 plush sprites retain their individual **CC BY-SA 3.0/4.0 or CC0** licenses; they are **not** covered by this repository's MIT license. See `icons/plushies/CREDITS.md`, original metadata and pinned source hashes. The non-commercial vulp set is excluded.

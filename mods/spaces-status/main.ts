@@ -24,8 +24,8 @@ import { actionRow, button } from "./ui/controls.js";
 import { surface } from "./ui/surfaces.js";
 import { entityRow } from "./ui/rows.js";
 import { statusBadge } from "./ui/status.js";
-import { UI, HIERARCHY } from "./ui/tokens.js";
-import { hierarchyActions, hierarchyButton, treeLines } from "./ui/hierarchy.js";
+import { UI, HIERARCHY, SPACING, RAIL } from "./ui/tokens.js";
+import { hierarchyActions, hierarchyButton, treeLines, machineInsets, railGeometry, branchGeometry } from "./ui/hierarchy.js";
 import { spaceHierarchy } from "./presentation/hierarchy.js";
 import type { HierarchyPosition } from "./presentation/hierarchy.js";
 import { LINEAGE_KEY, readLineage, originFor, originLabel, sourceParent } from "./worktree-lineage.js";
@@ -502,24 +502,25 @@ export default class Spaces extends View {
       const list = sessions.get(r.w.id) ?? [];
       const folded = this.sessionFolded.has(r.w.id);
       const fill = resolveColor(ctx.colors[r.w.id], t);
-      return [v_flex().id(`space-group-${r.w.id}`).flex_none().mb(4).overflow_hidden()
+      return [v_flex().id(`space-group-${r.w.id}`).flex_none().py(SPACING.sidebar.spaceInsetY).overflow_hidden()
         .border(UI.stroke).border_color(tint(fill, t.chrome, r.w.active ? .60 : .22))
         .bg(tint(fill, t.chrome, r.w.active ? .08 : .025))
         .child(this.row(r, t, ctx, infos.get(r.w.id), list, folded))
-        .when(!folded && list.length > 0, el => el.child(v_flex().pb(3)
+        .when(!folded && list.length > 0, el => el.child(v_flex()
           .children(list.map(s => this.sessionRow(r, s, t, fill)))))];
     };
     const expanded = (mine: Row[]): Element[] => {
-      const branch = (r: Row): Element => v_flex().relative().flex_none()
+      const connector = branchGeometry();
+      const branch = (r: Row): Element => v_flex().relative().flex_none().gap(SPACING.sidebar.groupGap)
         .when(r.depth > 0, el => el
-          .child(div().absolute().left(-8).top(0).w(UI.stroke).h((HIERARCHY.worktree.row + UI.stroke * 2) / 2)
+          .child(div().absolute().left(-connector.elbow).top(0).w(UI.stroke).h(connector.middle)
             .bg(tint(resolveColor(ctx.colors[r.w.id], t), t.chrome, .65)))
-          .child(div().absolute().left(-8).top(HIERARCHY.worktree.row / 2 + UI.stroke).w(8).h(UI.stroke)
+          .child(div().absolute().left(-connector.elbow).top(connector.middle).w(connector.elbow).h(UI.stroke)
             .bg(tint(resolveColor(ctx.colors[r.w.id], t), t.chrome, .65)))
-          .when(!r.last, el => el.child(div().absolute().left(-8).top(HIERARCHY.worktree.row / 2).bottom(0).w(UI.stroke)
+          .when(!r.last, el => el.child(div().absolute().left(-connector.elbow).top(connector.middle).bottom(0).w(UI.stroke)
             .bg(tint(resolveColor(ctx.colors[r.w.id], t), t.chrome, .65)))))
         .child(add(r)[0])
-        .when(mine.some(c => c.parent === r.w.id), el => el.child(v_flex().pl(r.depth < 6 ? 12 : 0)
+        .when(mine.some(c => c.parent === r.w.id), el => el.child(v_flex().gap(SPACING.sidebar.groupGap).pl(r.depth < 6 ? SPACING.sidebar.indent : 0)
           .children(mine.filter(c => c.parent === r.w.id).map(branch))));
       return mine.filter(r => !r.parent).map(branch);
     };
@@ -528,7 +529,7 @@ export default class Spaces extends View {
         const fill = resolveColor(ctx.colors[row.w.id], t), children = mine.filter(r => r.parent === row.w.id);
         const path = [...row.ancestors.map(id => mine.find(r => r.w.id === id)?.w.name ?? id), row.w.name].join(" → ");
         return v_flex().id(`rail-space-group-${row.w.id}`).flex_none()
-          .when(!row.parent, el => el.mr(2).mb(4).bg(tint(fill, t.chrome, .07)))
+          .when(!row.parent, el => el.bg(tint(fill, t.chrome, .07)))
           .child(this.compact(row, t, ctx, path, children.length > 0, sessions.get(row.w.id) ?? []))
           .when(children.length > 0, el => el.child(v_flex().id(`rail-worktrees-${row.w.id}`)
             .children(children.map(group))));
@@ -544,15 +545,16 @@ export default class Spaces extends View {
       return layout === "loading" || (!layout && this.machines.some(k => k.name === m && k.state === "connected"))
         || sp.some(s => (s.machine ?? null) === m && !this.shown.has(s.id));
     };
-    const loadingRow = (m: string | null) => h_flex().id(`machine-loading-${m ?? "local"}`).h(28).flex_none().px(collapsed ? 0 : 8).items_center().when(collapsed, el => el.justify_center()).text_size(12).text_color(t.dim).child(collapsed ? "…" : "Loading…");
-    if (machineNames.length === 1 && !collapsed) return loading(null) && !rows.length ? [loadingRow(null)] : expanded(rows);
+    const loadingRow = (m: string | null) => h_flex().id(`machine-loading-${m ?? "local"}`).h(28).flex_none().px(collapsed ? 0 : SPACING.row.inset).items_center().when(collapsed, el => el.justify_center()).text_size(12).text_color(t.dim).child(collapsed ? "…" : "Loading…");
+    if (machineNames.length === 1 && !collapsed) return loading(null) && !rows.length ? [loadingRow(null)]
+      : [v_flex().gap(SPACING.sidebar.groupGap).children(expanded(rows))];
     const colorFor = (m: string | null) => machineColor(appearance, m, t);
     const card = (m: string | null, idx: number, children: Element[]): Element =>
       v_flex().id(`machine-card-${m ?? "local"}`).flex_none()
-        .when(idx > 0, el => el.mt(12))
+        .when(idx > 0, el => el.mt(SPACING.sidebar.machineGap))
         .bg(tint(colorFor(m), t.chrome, .035)).border(UI.stroke).border_color(tint(colorFor(m), t.chrome, .40))
-        .px(collapsed ? 0 : 4).pb(4)
-        .when(collapsed, el => el.mx(2))
+        .p(collapsed ? RAIL.inset : SPACING.sidebar.machineInset).gap(SPACING.sidebar.groupGap)
+        .when(collapsed, el => el.mx(RAIL.outer))
         .children(children);
     return machineNames.flatMap((m: string | null, idx: number) => {
       const mine = rows.filter((r) => (r.w.machine ?? null) === m);
@@ -562,7 +564,7 @@ export default class Spaces extends View {
       const rebuilt = this.rebuilt(machine) || !!repair;
       const login = machine?.state === "needs_login" ? `hc machine login ${m}` : null;
       const folded = this.folded.has(m);
-      const badge = div().absolute().right(-3).bottom(-2).size(8).border(UI.stroke).border_color(t.chrome).bg(connected ? t.ansi2 : t.dim);
+      const badge = div().absolute().right(0).bottom(0).size(8).border(UI.stroke).border_color(t.chrome).bg(connected ? t.ansi2 : t.dim);
       const avatar = machineAvatar(appearance, m), fill = colorFor(m);
       const needs = all.filter(a => a.status === "blocked" && mine.some(r => r.w.id === a.space)).length;
       const foldMachine = (cx: Context) => {
@@ -570,11 +572,10 @@ export default class Spaces extends View {
         localStorage.setItem("machines.folded", JSON.stringify([...this.folded])); cx.notify();
       };
       // Match the space frame + row inset; both levels use the same action slots.
-      const size = HIERARCHY.machine;
+      const size = HIERARCHY.machine, inset = machineInsets();
       const head = h_flex().id(`machine-${m ?? "local"}`).h(collapsed ? size.railRow : size.row).flex_none()
-        .pl(collapsed ? 0 : 6).pr(collapsed ? 0 : ROW_INSET + UI.stroke).gap(8).items_center().text_size(14).text_color(t.dim)
-        .when(!collapsed, el => el.mb(4))
-        .when(collapsed, el => el.mt(4).w_full().justify_center().tooltip(login ? `${m} needs a login: run ${login}. Click for Copy.` : m ? `${m} · ${connected ? "connected" : (machine?.state ?? "asleep").replace(/_/g, " ")}` : "This computer"))
+        .pl(collapsed ? 0 : inset.left).pr(collapsed ? 0 : inset.right).gap(SPACING.row.gap).items_center().text_size(14).text_color(t.dim)
+        .when(collapsed, el => el.w_full().justify_center().tooltip(login ? `${m} needs a login: run ${login}. Click for Copy.` : m ? `${m} · ${connected ? "connected" : (machine?.state ?? "asleep").replace(/_/g, " ")}` : "This computer"))
         .cursor_pointer().hover(s => s.bg(t.hover))
         .on_click((_e, cx) => {
           if (collapsed && login) { run("app.settings", { section: "machines" }); return; }
@@ -587,7 +588,7 @@ export default class Spaces extends View {
         .child(div().relative().flex_none().when(!connected, el => el.opacity(.5))
           .child(renderAvatar(avatar, collapsed ? size.railAvatar : size.avatar, fill, machineLabel(m)))
           .when(Boolean(m), el => el.child(badge.tooltip(connected ? "Connected" : (machine?.state ?? "offline").replace(/_/g, " ")))))
-        .when(!collapsed, el => el.child(v_flex().flex_1().min_w(0).gap(3)
+        .when(!collapsed, el => el.child(v_flex().flex_1().min_w(0).gap(SPACING.metadata.gap)
           .child(div().truncate().text_size(size.text).font_semibold().text_color(connected ? t.foreground : t.muted)
             .tooltip(`${machineLabel(m)} · ${mine.length} spaces`).child(machineLabel(m)))
           .when(!connected, el => el.child(div().truncate().text_size(12).text_color(t.muted)
@@ -599,20 +600,20 @@ export default class Spaces extends View {
             hierarchyButton(t, "machine", `machine-fold-${m ?? "local"}`, folded ? "right" : "down",
               folded ? "Show spaces" : "Hide spaces", foldMachine)))
            .child(statusBadge(t, null)));
-      const connect = rebuilt && !collapsed ? h_flex().px(8).pb(8).gap(6).items_center()
+      const connect = rebuilt && !collapsed ? h_flex().p(SPACING.row.inset).gap(SPACING.row.gap).items_center()
         .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.muted).child(repair?.error || "Machine identity changed"))
         .child(button(t, `machine-connect-${m}`, repair?.busy ? "Connecting…" : "Connect", cx => this.reconnect(machine, cx),
           { disabled: Boolean(repair?.busy) }).tooltip(repair?.error || "Connect to the rebuilt machine")) : null;
       const empty = actionRow(t, `machine-new-${m ?? "local"}`, "New space", () => newSpaceInHome(m))
-        .px(collapsed ? 0 : 8).text_color(t.dim)
+        .px(collapsed ? 0 : SPACING.row.inset).text_color(t.dim)
         .when(collapsed, el => el.w(RAIL_CELL).justify_center().tooltip(`New space on ${m ?? "this computer"}`)
           .child(h_flex().size(18).border(UI.stroke).border_color(t.dim).items_center().justify_center()
             .child(pixelIcon("plus", t.dim, 10))))
         .when(!collapsed, el => el.child(pixelIcon("plus", t.dim)).child("New space"));
       const cell = collapsed ? railCell : (el: Element) => el;
-      const guidance = !collapsed && login ? [v_flex().px(8).pb(6).gap(3).flex_none()
+      const guidance = !collapsed && login ? [v_flex().p(SPACING.row.inset).gap(SPACING.metadata.gap).flex_none()
         .child(div().text_size(11).text_color(t.blocked).child("needs a login: run"))
-        .child(h_flex().gap(5).items_center()
+        .child(h_flex().gap(SPACING.metadata.gap).items_center()
           .child(div().flex_1().min_w(0).truncate().tooltip(login).text_size(11).text_color(t.muted).child(login))
           .child(button(t, `machine-login-copy-${m}`, this.copiedLogin === login ? "Copied" : "Copy",
             cx => { cx.write_to_clipboard(login); this.copiedLogin = login; cx.notify(); })))] : [];
@@ -635,7 +636,7 @@ export default class Spaces extends View {
     return h_flex()
       .max_w(110)
       .min_w(0)
-      .gap(5)
+      .gap(SPACING.metadata.gap)
       .justify_end()
       .items_center()
       .text_size(12)
@@ -706,7 +707,7 @@ export default class Spaces extends View {
         entityRow(t, w.name, renderAvatar(spaceAvatar(ctx.appearance, w.id), size.avatar, fill, w.name))
           .when(Boolean(g) && ctx.width >= UI.gitFrom, el => el.child(this.gitTail(g!, tree, w.name, t)))
           .when(pics.length > 0, (el) => el.child(
-            h_flex().flex_none().ml(6).gap(4).items_center()
+            h_flex().flex_none().gap(SPACING.metadata.gap).items_center()
               .children(pics.map((p) => div().flex_none().tooltip(p.h.program.name).child(p.pic))),
           ))
           .child(hierarchyActions(hierarchyButton(t, level, `space-worktree-${w.id}`, "branch", "New Git worktree", () => {
@@ -722,7 +723,7 @@ export default class Spaces extends View {
              : null))
            .child(statusBadge(t, showStatus ? w.status : null, info.label).id(`status-${w.id}`))
       )
-      .when(Boolean(origin), el => el.child(div().pl(size.avatar + UI.inset).text_size(UI.secondary).text_color(t.muted).truncate()
+      .when(Boolean(origin), el => el.child(div().pl(size.avatar + SPACING.row.gap).text_size(UI.secondary).text_color(t.muted).truncate()
         .tooltip(originLabel(origin!)).child(originLabel(origin!))));
   }
 
@@ -738,9 +739,9 @@ export default class Spaces extends View {
       .id(`session-${s.tab.id}`)
       .h(28)
       .flex_none()
-      .pl(16)
+      .pl(SPACING.row.inset + SPACING.sidebar.sessionIndent)
       .pr(ROW_INSET)
-      .gap(8)
+      .gap(SPACING.row.gap)
       .items_center()
       .when(on, (el) => el.bg(tint(fill, t.chrome, .20)))
       .when(!on, (el) => el.hover((hover) => hover.bg(t.hover)))
@@ -752,7 +753,7 @@ export default class Spaces extends View {
       .tooltip(s.tip ? `${s.label} · ${s.tip}` : s.label)
       .child(div().w(UI.stroke).h(12).flex_none().bg(on ? fill : tint(fill, t.chrome, .18)))
       .when(harnesses.length > 0, (el) => el.child(
-        h_flex().flex_none().gap(3).items_center()
+        h_flex().flex_none().gap(SPACING.metadata.gap).items_center()
           .children(harnesses.map((p) => div().flex_none().tooltip(p.h.program.name).child(p.pic))),
       ))
       .child(div().flex_1().min_w(0).truncate().text_color(color).child(s.label))
@@ -762,10 +763,10 @@ export default class Spaces extends View {
   }
 
   compact(row: Row, t: Theme, ctx: RowCtx, path = row.w.name, children = false, sessions: Session[] = []): Element {
-    const { w, depth, origin } = row;
+    const { w, origin } = row;
     const size = HIERARCHY[ctx.appearance.spaceDefaults[w.id]?.worktree ? "worktree" : "space"];
     const fill = resolveColor(ctx.colors[w.id], t);
-    const cluster = (ctx.width - 44) / 2 + 2;
+    const slots = railGeometry(ctx.width, size.railAvatar);
     const tip = `${machineLabel(w.machine)} → ${path}${origin ? `\n${originLabel(origin)}` : ""}\n${sessions.length ? sessions.map(s => `${s.label}: ${s.tip}`).join("\n") : "No agents"}`;
     return h_flex()
       .id(`space-${w.id}`)
@@ -783,14 +784,14 @@ export default class Spaces extends View {
         this.menu(w, row.g, Boolean(ctx.appearance.spaceDefaults[w.id]?.worktree));
       })
       .tooltip(tip)
-      .child(treeLines(tint(fill, t.chrome, .65), row, children, size.railRow).left(cluster))
+      .child(treeLines(tint(fill, t.chrome, .65), row, children, size.railRow, slots.avatar - slots.tree).left(slots.tree))
       // Selection, tree and status occupy independent lanes.
       .when(w.active, el => el.child(div().id(`space-selection-${w.id}`).absolute()
-         .left(0).top(5).bottom(5).w(2).bg(t.foreground)))
-      .child(div().absolute().left(cluster + (depth ? 8 : 4)).top((size.railRow - size.railAvatar) / 2)
+         .left(0).top(RAIL.selectionInset).bottom(RAIL.selectionInset).w(UI.stroke).bg(t.foreground)))
+      .child(div().absolute().left(slots.avatar).top((size.railRow - size.railAvatar) / 2)
         .child(renderAvatar(spaceAvatar(ctx.appearance, w.id), size.railAvatar, fill, w.name)))
       .child(statusBadge(t, w.status, tip, true).id(`space-status-${w.id}`).absolute()
-        .left(cluster + 22).top((size.railRow - 10) / 2));
+         .left(slots.status).top((size.railRow - UI.statusCompact) / 2));
   }
 
   render(cx?: Context): Element {
@@ -829,7 +830,7 @@ export default class Spaces extends View {
     return surface(t, "bar").flex_col().items_stretch().size_full()
       .when(collapsed, el => el.child(h_flex().w_full().h(UI.control).flex_none().justify_center().items_center()
         .child(pixelButton(t, "space-new", "plus", "New space in current machine’s home", () => newSpaceInHome(), { quiet: true }))))
-      .child(v_flex().flex_1().min_h(0).px(collapsed ? 0 : 8).pt(8).pb(14).overflow_y_scrollbar().mode("always")
+      .child(v_flex().flex_1().min_h(0).px(collapsed ? 0 : SPACING.sidebar.inset).py(SPACING.sidebar.inset).overflow_y_scrollbar().mode("always")
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
         .children(this.grouped(t, collapsed, snapshot)));
   }

@@ -16,6 +16,7 @@ import { pixelIcon, pixelStatus, programIcon } from "../pixel-ui.js";
 import { closeTab, newSpaceInHome } from "../overlays.js";
 import { loadMachines } from "../data/machines.js";
 import { agentTree } from "../data/agent-tree.js";
+import { SPACING } from "../ui/tokens.js";
 
 type Row =
   | { kind: "head"; id: string; space: SpaceInfo }
@@ -105,8 +106,8 @@ export class Picker {
           if (row.kind === "head") {
             const identity = identities.space(row.space.id), machine = identities.machine(row.space.machine);
             return entityRow(t, row.space.name, renderAvatar(identity.avatar, 20, identity.color, row.space.name),
-              h_flex().gap(6).items_center().child(renderAvatar(machine.avatar, 18, machine.color, machineLabel(row.space.machine)))
-                .child(shortcut(t, machineLabel(row.space.machine)))).id(row.id).h(36).px(8).flex_none().font_semibold();
+              h_flex().gap(SPACING.metadata.gap).items_center().child(renderAvatar(machine.avatar, 18, machine.color, machineLabel(row.space.machine)))
+                .child(shortcut(t, machineLabel(row.space.machine)))).id(row.id).h(36).px(SPACING.row.inset).flex_none().font_semibold();
           }
           const label = row.kind === "tab" ? row.label : row.kind === "earlier" ? `${row.count} quiet spaces`
             : row.kind === "new" ? "New tab" : `New space on ${machineLabel(row.machine)}`;

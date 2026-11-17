@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p mods/spaces-status && node scripts/sync-ui-layout.mjs",
-    "check": "tsc -p mods/spaces-status --noEmit && tsc -p mods/spaces-status/tsconfig.appearance.json && node scripts/sync-ui-layout.mjs --check",
+    "build": "tsc -p mods/spaces-status && node scripts/sync-ui-layout.mjs && node scripts/sync-ui-icons.mjs",
+    "check": "tsc -p mods/spaces-status --noEmit && tsc -p mods/spaces-status/tsconfig.appearance.json && node scripts/check-ui-artifacts.mjs && node scripts/check-ui-spacing.mjs && node scripts/sync-ui-layout.mjs --check && node scripts/sync-ui-icons.mjs --check",
     "test": "node --test tests/*.test.mjs",
     "sync-icons": "node scripts/sync-material-icons.mjs",
     "sync-plushies": "node scripts/sync-plushies.mjs",
