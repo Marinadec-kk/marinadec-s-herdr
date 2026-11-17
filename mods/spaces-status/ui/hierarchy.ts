@@ -30,9 +30,8 @@ export function treeLines(color: `#${string}`, position: TreePosition, children:
   const line = (left: number, top: number, height: number) => div().absolute().left(left).top(top).w(UI.stroke).h(height).bg(color);
   return div().absolute().inset_0()
     .children([...full].map(left => line(left, 0, height)))
-    .when(depth > 0, el => el.child(line(lane(depth - 1), 0, last ? mid + UI.stroke : height))
+    .when(depth > 0, el => el.child(line(lane(depth - 1), 0, last ? mid : height))
       .child(div().absolute().left(lane(depth - 1)).top(mid).w(8 - lane(depth - 1)).h(UI.stroke).bg(color)))
     .when(children, el => el.child(line(lane(depth), mid, height - mid))
-      .when(depth === 0, el => el.child(div().absolute().left(0).top(mid).w(4).h(UI.stroke).bg(color))))
-    .when(depth === 0 && !children, el => el.child(line(0, 6, height - 12)));
+      .when(depth === 0, el => el.child(div().absolute().left(0).top(mid).w(4).h(UI.stroke).bg(color))));
 }

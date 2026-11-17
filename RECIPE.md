@@ -12,7 +12,7 @@ A square-edged Herdr workspace with clear machine → space → agent-session hi
 - **Action alignment:** all three levels use two centered 28 px slots with a 4 px gap. The machine header compensates for the space's 2 px frame. `+` and worktree buttons share one x-coordinate, fold buttons share the other; empty slots retain geometry.
 - **Sessions:** 28 px rows, left/right padding 16/8, gap 8, 2 px marker, harness icon, 14 px name, 12 px sub-agent count, status centered in the shared 28 px end column. Active fill is 20% of the space color; no extra nested separator frames.
 - **Rail:** below 160 px, tinted 2 px machine cards show 28 px characters, 18 px space icons and 14 px worktree icons. Every frame, identity rail and tree connector is 2 px thick. Parent spaces and their linked worktrees share tree connectors with terminating elbows sized to each row. Two connector lanes fit arbitrary ancestry in the 44 px rail; hover carries the full path and recorded origin. Machine/space/worktree rows are 36/32/28 px high; nested worktrees stay 28 px. Saved relationships survive unavailable Git. Sessions and Git tails are hidden.
-- **Rail selection:** only the active space/worktree gets a 2 px `foreground` frame and a 24% identity-color fill over `chrome`. The frame is an absolute overlay, inset 8 px from the left for nested rows to leave tree connectors visible; switching spaces never moves the icons. Agent-status dots retain their separate colors and sizes.
+- **Rail selection:** only the active space/worktree gets a 2 px `foreground` marker and 24% fill. The status has its own 10 px slot; it never touches the marker or avatar.
 - **Status bar:** starts with `machine → space name` in `foreground`, capped at 420 px with truncation and a full-label tooltip. It follows space switches and renames in either sidebar mode; the branch, agent counts and Commands action remain.
 - **Work area:** 8 px padding/gaps, square panes, 2 px inactive/focus borders (color changes with focus), 32 px pane header. Header actions reserve their width while hidden, avoiding path movement on hover. Tab labels allow up to 240 px. Dividers are 2 px.
 - **Shared surfaces:** search, appearance, tab rename, close confirmations, worktrees, machine-add, terminal menus, notifications and Files/Changes use the same controls and templates. App-owned Settings, palette, Welcome, What's new and internal dialog entrypoints retain Herdr's presentation.
@@ -53,7 +53,7 @@ Machine headers fold groups using `machines.folded`. Login guidance and Copy rem
 
 Git metadata comes from the first live terminal's folder: `rev-parse`, `symbolic-ref`, and upstream `rev-list` counts. Git tails show only unusual repo/branch/ahead/behind info, at sidebar widths >=340 px. Local refs use `watchFolder`; remote refs use gentle polling. No status scan, fetch, push or pull is added.
 
-Pixel status marks retain their semantics: native rotating pair for working, `!` for blocked, filled square for done, outlined square for idle. Characters are identity, not status.
+Status marks use a native pulsing hourglass, `!`, check and outlined square. Characters are identity, not status.
 
 Tabs retain wheel/drag, active-tab scrolling, menus, new-agent launch, and per-space Files/Changes memory. Pane actions use explicit pane IDs. Window controls retain platform-specific behavior.
 

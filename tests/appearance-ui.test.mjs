@@ -137,6 +137,8 @@ const { parseMachines, machineError, loadMachines } = await import("../mods/spac
 const { PanelLifecycle } = await import("../mods/spaces-status/views/panel-lifecycle.js");
 const { openSpaceMenu, openTabMenu } = await import("../mods/spaces-status/overlays.js");
 const { menuHeight } = await import("../mods/spaces-status/ui/tokens.js");
+const { statusBadge } = await import("../mods/spaces-status/ui/status.js");
+const { treeLines } = await import("../mods/spaces-status/ui/hierarchy.js");
 let env;
 beforeEach(() => {
   env = environment();
@@ -414,6 +416,41 @@ test("new pixel menu restores installed agents from cache and preserves launch a
 const key = (name, modifiers = {}) => ({ key: name, modifiers });
 const text = node => typeof node === "string" ? node : (node?.kids ?? []).map(text).join(" ");
 
+test("all status slots have fixed bounds", () => {
+  for (const status of ["working", "blocked", "done", "idle", null]) {
+    const badge = statusBadge(env.call("theme"), status);
+    assert.equal(badge.props.size, 16);
+  }
+});
+
+test("null status is empty and each glyph is bounded", () => {
+  for (const compact of [true, false]) {
+    for (const status of ["working", "blocked", "done", "idle", null]) {
+      const badge = statusBadge(env.call("theme"), status, "Owner", compact);
+      assert.equal(badge.props.size, compact ? 10 : 16);
+      if (!status) { assert.equal(badge.kids.length, 0); continue; }
+      assert.equal(badge.kids[0].props.asset, `mods/spaces-status/icons/status/${status}.svg`);
+      assert.equal(badge.kids[0].props.loop, status === "working" ? "opacity" : undefined);
+    }
+  }
+});
+
+test("folding does not move status", () => {
+  tabsFixture();
+  env.spaces[0].status = "working";
+  env.agents = [{ address: "a", space: "s1", status: "working", tab: "t1" }];
+  const view = new Spaces(); view.init({}, env.cx);
+  assert.equal(find(view.render(), "status-s1").kids.length, 0);
+  click(view, "space-fold-s1");
+  assert.equal(find(view.render(), "status-s1").kids.length, 1);
+});
+
+test("tree lines distinguish siblings and do not continue past the end", () => {
+  assert.equal(treeLines("#fff", { depth: 0, last: true, continuations: [] }, false).kids.length, 0);
+  const last = treeLines("#fff", { depth: 1, last: true, continuations: [] }, true, 28);
+  assert.equal(last.kids[0].props.h, 14);
+});
+
 test("status bar names the active local or remote space, tracks renames and bounds long labels", () => {
   const ui = chrome("status");
   env.spaces[0].branch = "main";
@@ -578,20 +615,20 @@ test("rail selection is explicit in both themes and follows only the active spac
         for (const space of env.spaces) space.active = space.id === id;
         const tree = view.render(), row = find(tree, `space-${id}`), frame = find(row, `space-selection-${id}`);
         assert.ok(frame, `Missing selection for ${id} at ${width} px, dark=${dark}`);
-        assert.equal(frame.props.border, 2);
-        assert.equal(frame.props.border_color, env.theme.foreground);
+        assert.equal(frame.props.border, undefined);
+        assert.equal(frame.props.bg, env.theme.foreground);
         assert.equal(frame.props.absolute, true);
-        assert.equal(frame.props.inset_0, true);
-        assert.equal(frame.props.left, id.startsWith("wt") ? 8 : undefined);
+        assert.equal(frame.props.w, 2);
+        assert.equal(frame.props.left, 0);
         assert.equal(row.props.bg, tint(env.values.get("space.colors")[id], env.theme.chrome, .24));
         assert.deepEqual(geometry(tree), before);
         for (const other of ids.filter(other => other !== id)) {
           assert.equal(find(tree, `space-selection-${other}`), undefined);
           assert.equal(find(tree, `space-${other}`).props.bg, undefined);
         }
-        assert.equal(find(tree, "space-status-wt").props.bg, env.theme.blocked);
-        assert.equal(find(tree, "space-status-wt").props.size, 5);
-        assert.equal(find(tree, "space-status-wt-deep").props.bg, env.theme.done);
+        assert.equal(find(tree, "space-status-wt").props.size, 10);
+        assert.equal(find(tree, "space-status-wt").kids[0].props.text_color, env.theme.blocked);
+        assert.equal(find(tree, "space-status-wt-deep").kids[0].props.text_color, env.theme.done);
         row.events.on_click({}, env.cx);
         assert.deepEqual(env.commands.at(-1), ["space.select", { id }]);
       }

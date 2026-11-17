@@ -1,14 +1,12 @@
 // Small original bitmap glyphs. Program/harness logos keep their own artwork.
 import { div, image, svg } from "gpui-kit";
 import type { Color, Element } from "gpui-kit";
-import { h_flex } from "gpui-base";
 import type { Program, Status } from "herdr";
 import type { Theme } from "./appearance-model.js";
 import { iconButton } from "./ui/controls.js";
 import type { Action, ControlOptions } from "./ui/controls.js";
-import { tint } from "./appearance-colors.js";
 import { statusWord } from "./presentation/status.js";
-import { UI } from "./ui/tokens.js";
+import { statusBadge } from "./ui/status.js";
 
 const GLYPHS = {
   plus: ["0001000", "0001000", "0001000", "1111111", "0001000", "0001000", "0001000"],
@@ -48,13 +46,5 @@ export function pixelButton(t: Theme, id: string, glyph: PixelGlyph, hint: strin
 }
 
 export function pixelStatus(t: Theme, status: Status | null, label = statusWord(status)): Element | null {
-  if (!status) return null;
-  if (status === "working") return div().size(10).flex_none().relative().spin(1000).tooltip(label)
-    .child(div().absolute().left(0).top(0).size(4).bg(t.working))
-    .child(div().absolute().right(0).bottom(0).size(4).bg(t.working));
-  if (status === "blocked") return h_flex().size(14).flex_none().items_center().justify_center()
-    .bg(tint(t.blocked, t.chrome, .15)).text_size(14).text_color(t.blocked).tooltip(label).child("!");
-  return div().size(6).flex_none().tooltip(label)
-    .when(status === "idle", el => el.border(UI.stroke).border_color(t.idle ?? t.dim))
-    .when(status !== "idle", el => el.bg(t.done));
+  return status ? statusBadge(t, status, label) : null;
 }

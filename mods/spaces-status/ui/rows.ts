@@ -4,7 +4,7 @@ import { h_flex } from "gpui-base";
 import type { Theme } from "../appearance-model.js";
 import { UI } from "./tokens.js";
 
-export const rowEnd = (): Element => h_flex().size(UI.machineTarget).flex_none().items_center().justify_center();
+export const rowEnd = (): Element => h_flex().size(UI.status).flex_none().items_center().justify_center();
 
 // A presentation-only row: callers keep entity-specific selection/drag semantics.
 export function entityRow(t: Theme, label: string, leading?: Element | null, trailing?: Element | null): Element {

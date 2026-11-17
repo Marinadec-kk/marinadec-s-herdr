@@ -3,6 +3,7 @@ export const UI = {
   stroke: 2, iconTarget: 24, machineTarget: 28, icon: 14, machineIcon: 18,
   actionGap: 4, control: 32, secondary: 12, sourceLine: 18, programIcon: 14, inset: 8,
   menuInset: 5, menuMaxHeight: 480,
+  status: 16, statusCompact: 10,
   railCell: 32, railBelow: 160, compactBelow: 240, gitFrom: 340, sidebar: 299,
 } as const;
 export const HIERARCHY = {

@@ -41,14 +41,14 @@ export default class StatusReview extends View {
   railRow(row, t) {
     const on = this.selected === row.id, fill = this.color(row, t);
     const height = row.depth ? 28 : 32, size = row.depth ? 14 : 18;
-    const cluster = (this.railWidth - 44) / 2;
+    const cluster = (this.railWidth - 44) / 2 + 2;
     return h_flex().id(`rail-${row.id}`).relative().w_full().h(height).flex_none()
       .bg(tint(fill, t.chrome, on ? .24 : .07))
       .when(!on, el => el.hover(style => style.bg(t.hover)))
       .cursor_pointer().tooltip(this.tip(row))
       .on_click((_event, cx) => this.select(row, cx))
       .children(segments(row, height).map(([x, y, w, h]) => div().absolute().left(cluster + x).top(y).w(w).h(h).bg(tint(fill, t.chrome, .65))))
-      .when(on, el => el.child(div().absolute().left(-4).top(5).bottom(5).w(2).bg(t.foreground)))
+      .when(on, el => el.child(div().absolute().left(0).top(5).bottom(5).w(2).bg(t.foreground)))
       .child(div().absolute().left(cluster + (row.depth ? 8 : 4)).top((height - size) / 2)
         .child(renderAvatar({ kind: "material", family: "sharp", name: row.icon }, size, fill, row.name)))
       .child(div().absolute().left(cluster + 22).top((height - 10) / 2)
@@ -63,7 +63,7 @@ export default class StatusReview extends View {
             .child(h_flex().h(40).flex_none().justify_center().items_center()
               .tooltip(`${machine.name} · подключено (не статус агента)`)
               .child(renderAvatar({ kind: "plush", id: machine.character }, 28, machine.color, machine.name)))
-            .child(v_flex().mx(2)
+            .child(v_flex().mr(2)
               .children(project(this.rows).map(row => ({ ...row, children: this.rows.some(child => child.parent === row.id) }))
                 .filter(row => row.machine === machine.id).map(row => this.railRow(row, t)))))));
   }
