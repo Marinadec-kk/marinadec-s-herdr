@@ -2,7 +2,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -11,7 +11,7 @@ import { CHARACTER_ACCENTS } from "../mods/spaces-status/character-accents.js";
 import { tint } from "../mods/spaces-status/appearance-colors.js";
 
 function element(kind) {
-  const node = { kind, kids: [], props: {}, events: {} };
+  const node = { kind, kids: [], props: {}, events: {}, styles: [] };
   const proxy = new Proxy(node, {
     get(object, key) {
       if (key in object) return object[key];
@@ -23,7 +23,7 @@ function element(kind) {
         else if (key.startsWith("on_")) {
           const event = typeof args[0] === "string" ? `${key}:${args[0]}` : key;
           node.events[event] = args.at(-1);
-        } else node.props[key] = args[0] ?? true;
+        } else { node.styles.push([key, args[0] ?? true]); node.props[key] = args[0] ?? true; }
         return proxy;
       };
     },
@@ -35,7 +35,7 @@ function environment() {
   const env = {
     inputs: [], values: new Map(), calls: new Map(), commands: [], opened: [], closed: [], writes: [],
     timers: 0, timerTasks: [], releases: 0, spawns: 0, notifications: 0, props: {}, scrolls: [], panes: [], agents: [], terminals: [], jobs: [], clipboard: [], stops: 0,
-    dark: true, theme: { foreground: "#eeeeee", ansi6: "#22a99a" },
+    dark: true, zoom: 1, viewport: { width: 1000, height: 900 }, theme: { foreground: "#eeeeee", ansi6: "#22a99a" },
     layout: { id: "root", children: [{ id: "sidebar", size: { px: 299 } }] },
     spaces: [
       { id: "s1", name: "Demo", named: true, machine: null, folder: "/demo", tabs: [], active: true, status: null },
@@ -76,7 +76,7 @@ function environment() {
     if (name === "spaces") return structuredClone(env.spaces);
     if (name === "machines") return [{ name: null, layout: "ready" }, { name: "pi", layout: "ready" }, { name: "small", layout: "ready" }];
     if (["agents", "terminals", "panes"].includes(name)) return structuredClone(env[name]);
-    if (name === "settings") return { dark: env.dark, zoom: 1 };
+    if (name === "settings") return { dark: env.dark, zoom: env.zoom };
     if (name === "layout") return structuredClone(env.layout);
     if (name === "window") return { platform: "linux", buttons: true, titlebar: "none" };
     if (name === "home") return "/home/test";
@@ -127,9 +127,10 @@ const { renderAvatar } = await import("../mods/spaces-status/appearance-avatar.j
 const { createPixelMenu } = await import("../mods/spaces-status/pixel-menu.js");
 const { tabLabel } = await import("../mods/spaces-status/pixel-chrome.js");
 const { createView } = await import("../mods/spaces-status/views/index.js");
-const { openWorktree } = await import("../mods/spaces-status/overlays.js");
+const { openWorktree, openSurface } = await import("../mods/spaces-status/overlays.js");
 const { Menu } = await import("../mods/spaces-status/ui/menu.js");
-const { button } = await import("../mods/spaces-status/ui/controls.js");
+const { button, actionRow, textInput } = await import("../mods/spaces-status/ui/controls.js");
+const { dialog, panelHeader } = await import("../mods/spaces-status/ui/surfaces.js");
 const { LINEAGE_KEY, checkoutKey, readLineage } = await import("../mods/spaces-status/worktree-lineage.js");
 const { readRepository, readGitStatus } = await import("../mods/spaces-status/data/git.js");
 const { checkouts } = await import("../mods/spaces-status/views/worktree-git.js");
@@ -138,11 +139,17 @@ const { PanelLifecycle } = await import("../mods/spaces-status/views/panel-lifec
 const { openSpaceMenu, openTabMenu } = await import("../mods/spaces-status/overlays.js");
 const { menuHeight } = await import("../mods/spaces-status/ui/tokens.js");
 const { statusBadge } = await import("../mods/spaces-status/ui/status.js");
-const { treeLines } = await import("../mods/spaces-status/ui/hierarchy.js");
+const { treeLines, railGeometry, machineInsets, branchGeometry } = await import("../mods/spaces-status/ui/hierarchy.js");
+const { SPACING, UI, RAIL, HIERARCHY, GALLERY } = await import("../mods/spaces-status/ui/tokens.js");
+const { pixelIcon } = await import("../mods/spaces-status/pixel-ui.js");
+const { GLYPHS } = await import("../mods/spaces-status/ui/glyphs.js");
 let env;
 beforeEach(() => {
   env = environment();
   globalThis.__appearanceHost = env;
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {
+    viewport_size: () => env.viewport,
+  } });
   const storage = new Map();
   Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
     getItem: key => storage.get(key) ?? null,
@@ -156,6 +163,44 @@ const click = (ui, id) => {
   node.events.on_click({}, env.cx);
 };
 const editor = target => createAppearanceOverlay({ appearance: target, overlay: "editor" }, env.cx);
+
+// Resolve shorthand and directional overrides in declaration order, rather than
+// treating `px` and `pl` as unrelated mock props.
+function effectivePadding(node) {
+  const padding = { top: 0, right: 0, bottom: 0, left: 0 };
+  const sides = { p: ["top", "right", "bottom", "left"], px: ["left", "right"], py: ["top", "bottom"],
+    pt: ["top"], pr: ["right"], pb: ["bottom"], pl: ["left"] };
+  for (const [method, value] of node.styles) for (const side of sides[method] ?? []) padding[side] = value;
+  return padding;
+}
+test("shared controls and surfaces apply paired padding from semantic roles", () => {
+  const t = env.call("theme");
+  for (const node of [button(t, "b", "Button", () => {}), actionRow(t, "r", "Row", () => {}),
+    textInput(t, env.input({})), panelHeader(t, "Panel"), dialog(t, "dialog")]) {
+    const p = effectivePadding(node);
+    assert.equal(p.left, p.right);
+    assert.equal(p.top, p.bottom);
+  }
+  assert.equal(effectivePadding(button(t, "b", "B", () => {})).left, SPACING.control.inset);
+  assert.deepEqual(effectivePadding(element("test").p(8).pl(12).py(4)), { left: 12, right: 8, top: 4, bottom: 4 });
+});
+test("rail geometry centers the identity/status slots inside the real card interior", () => {
+  for (const width of [44, 76, 159]) {
+    const slots = railGeometry(width);
+    assert.equal(slots.avatar, slots.content - slots.status - UI.statusCompact);
+    assert.ok(slots.tree >= UI.stroke); // Separate from the active marker.
+    assert.ok(slots.avatar >= 0);
+    const child = railGeometry(width, HIERARCHY.worktree.railAvatar);
+    assert.equal(child.avatar + HIERARCHY.worktree.railAvatar, slots.status);
+    assert.equal(child.status, slots.status);
+    const line = treeLines("#fff", { depth: 1, last: true, continuations: [] }, false, 28, child.avatar - child.tree);
+    assert.ok(line.kids[1].props.w + child.tree <= child.avatar);
+    assert.equal(slots.content + 2 * (RAIL.outer + RAIL.inset + UI.stroke), width);
+  }
+  const inset = machineInsets();
+  assert.equal(inset.right + SPACING.sidebar.machineInset, SPACING.row.inset + UI.stroke + SPACING.sidebar.machineInset);
+  assert.equal(branchGeometry().middle, UI.stroke + SPACING.sidebar.spaceInsetY + HIERARCHY.worktree.row / 2);
+});
 
 test("machine editor derives color from its character and starts no sidebar pollers", () => {
   const ui = editor({ kind: "machine", machine: "pi" });
@@ -348,6 +393,116 @@ test("pane buttons keep explicit pane targets and never focus/close a different 
   assert.equal(env.spawns, 0);
 });
 
+test("header status is before the path and controls can be used without a mouse", () => {
+  env.panes = [{ pane: "p2", status: "idle", cwd: "/demo" }]; env.props = { pane: "p2" };
+  const ui = chrome("pane"), tree = ui.render();
+  assert.equal(tree.kids[1].kids[0].props.asset, "mods/spaces-status/icons/status/idle.svg");
+  assert.equal(tree.kids[2].props.tooltip, "/demo");
+  assert.equal(find(tree, "ph-r-p2").props.tab_stop, false);
+  assert.equal(find(tree, "actions-p2").props.invisible, true);
+  tree.events.on_key_down({ key: "enter" }, env.cx);
+  assert.equal(find(ui.render(), "ph-r-p2").props.tab_stop, true);
+  assert.equal(find(ui.render(), "actions-p2").props.invisible, undefined);
+  tree.events.on_key_down({ key: "escape" }, env.cx);
+  assert.equal(find(ui.render(), "ph-r-p2").props.tab_stop, false);
+  // Hover changes visibility, not the path's layout or the reserved controls.
+  tree.events.on_hover(true, env.cx);
+  const hovered = ui.render();
+  assert.deepEqual(hovered.kids[2].props, tree.kids[2].props);
+  assert.equal(find(hovered, "actions-p2").kids.length, 4);
+  assert.equal(find(hovered, "actions-p2").props.invisible, undefined);
+});
+
+test("narrow pane controls collapse to a menu with the captured pane and terminal", () => {
+  env.panes = [{ pane: "p2", terminal: "remote/term", status: "blocked", cwd: "/demo" }];
+  env.props = { pane: "p2" };
+  const ui = chrome("pane");
+  ui.render().events.on_size_change({ width: 220, height: 32 }, env.cx);
+  let tree = ui.render();
+  assert.equal(find(tree, "ph-r-p2"), undefined);
+  assert.equal(find(tree, "more-p2").props.tab_stop, false);
+  tree.events.on_key_down({ key: "space" }, env.cx);
+  tree = ui.render();
+  assert.equal(find(tree, "more-p2").props.tab_stop, true);
+  click(ui, "more-p2");
+  assert.deepEqual(env.opened[0].props, { tab: "pane", target: { pane: "p2", terminal: "remote/term" } });
+  tree.events.on_size_change({ width: 480, height: 32 }, env.cx);
+  assert.equal(find(ui.render(), "more-p2"), undefined);
+  assert.ok(find(ui.render(), "ph-r-p2"));
+});
+
+test("pane and status breakpoints use unzoomed UI sizes", () => {
+  env.panes = [{ pane: "p2", status: "idle" }]; env.props = { pane: "p2" };
+  for (const zoom of [.75, 1, 1.25, 1.5, 2, 3]) {
+    env.zoom = zoom;
+    const pane = chrome("pane"), status = chrome("status");
+    pane.render().events.on_size_change({ width: 220 * zoom, height: 32 * zoom }, env.cx);
+    assert.ok(find(pane.render(), "more-p2"), `compact pane at ${zoom}`);
+    status.render().events.on_size_change({ width: 480 * zoom, height: 28 * zoom }, env.cx);
+    assert.equal(find(status.render(), "palette"), undefined, `compact status at ${zoom}`);
+    status.render().events.on_size_change({ width: 900 * zoom, height: 28 * zoom }, env.cx);
+    assert.ok(find(status.render(), "palette"), `wide status at ${zoom}`);
+  }
+});
+
+test("avatar keyboard rows keep the actual column count at every zoom", () => {
+  for (const zoom of [1, 1.25, 1.5, 2]) {
+    env.zoom = zoom;
+    const ui = editor({ kind: "space", id: "s1" }), gallery = find(ui.render(), "avatar-gallery");
+    gallery.events.on_size_change({ width: (54 * 8 - 6) * zoom, height: 300 * zoom }, env.cx);
+    assert.equal(ui.columns, 8);
+    const grid = find(ui.render(), "avatar-grid");
+    assert.equal(grid.props.w, 8 * (GALLERY.cell + GALLERY.gap) - GALLERY.gap);
+    assert.equal(grid.props.justify_center, undefined); // Last row keeps keyboard columns.
+    gallery.events.on_key_down({ key: "down" }, env.cx);
+    assert.equal(ui.cursor, 8);
+  }
+});
+
+test("every bitmap icon is a single bounded SVG path at each UI size", () => {
+  for (const [name, rows] of Object.entries(GLYPHS)) {
+    assert.equal(rows.length, 7);
+    for (const row of rows) assert.match(row, /^[01]{7}$/);
+    const asset = `mods/spaces-status/icons/ui/${name}.svg`;
+    const svg = readFileSync(new URL(`../${asset}`, import.meta.url), "utf8");
+    assert.equal((svg.match(/<path /g) ?? []).length, 1);
+    assert.doesNotMatch(svg, /<rect|<line|<image/);
+    assert.match(svg, /viewBox="0 0 7 7"/);
+    const runs = [...svg.matchAll(/M(\d) (\d)h(\d)v1h-(\d)z/g)];
+    const reconstructed = Array.from({ length: 7 }, () => Array(7).fill("0"));
+    for (const [, x, y, width, back] of runs) {
+      assert.equal(width, back);
+      assert.ok(Number(x) + Number(width) <= 7);
+      for (let i = 0; i < Number(width); i++) reconstructed[y][Number(x) + i] = "1";
+    }
+    assert.deepEqual(reconstructed.map(row => row.join("")), rows);
+    for (const size of [10, 12, 14, 18]) {
+      const node = pixelIcon(name, "#fff", size);
+      assert.equal(node.kind, "svg");
+      assert.equal(node.props.asset, asset);
+      assert.equal(node.props.size, size);
+      assert.equal(node.props.text_color, "#fff");
+      assert.equal(node.kids.length, 0);
+    }
+  }
+});
+
+test("owned overlays fit the zoomed viewport, including top-anchored search", () => {
+  for (const zoom of [.75, 1, 1.25, 1.5, 2, 3]) {
+    env.zoom = zoom;
+    for (const viewport of [{ width: 1240, height: 930 }, { width: 480, height: 320 }]) {
+      env.viewport = viewport;
+      openSurface({ view: "picker" }, { kind: "popup", at: "top", width: 640, height: 560 });
+      const overlay = env.opened.at(-1);
+      const w = viewport.width / zoom, h = viewport.height / zoom;
+      assert.ok(overlay.width > 0 && overlay.width <= w);
+      assert.ok(overlay.height > 0 && overlay.height <= h);
+      assert.ok(overlay.at.x >= 0 && overlay.at.x + overlay.width <= w);
+      assert.ok(overlay.at.y >= 0 && overlay.at.y + overlay.height <= h);
+    }
+  }
+});
+
 test("pixel space groups wrap their own sessions and keep fold/navigation behavior", () => {
   tabsFixture();
   env.agents = [{ address: "a1", space: "s1", tab: "t1", title: "Agent", status: "idle",
@@ -372,7 +527,7 @@ test("editors separate characters and icons, and keyboard selection saves the fo
   const ui = editor({ kind: "space", id: "s1" });
   assert.equal(find(ui.render(), "avatar-plush-ss14-shark-blue"), undefined);
   assert.equal(find(ui.render(), "color-auto"), undefined);
-  const choices = find(ui.render(), "avatar-gallery").kids;
+  const choices = find(ui.render(), "avatar-grid").kids;
   const expected = choices[1].props.id.replace("material-", "");
   const gallery = find(ui.render(), "avatar-gallery");
   gallery.events.on_key_down({ key: "right" }, env.cx);
@@ -485,6 +640,20 @@ test("status bar has a quiet fallback when no space is active", () => {
   assert.equal(text(identity).trim(), "This computer");
   assert.equal(identity.props.tooltip, "This computer");
   assert.doesNotMatch(text(tree), /undefined|null|→/);
+});
+
+test("status bar drops optional details before the current space on narrow windows", () => {
+  const ui = chrome("status");
+  env.spaces[0].branch = "feature";
+  for (const [width, commands] of [[900, true], [480, false], [220, false]]) {
+    ui.render().events.on_size_change({ width, height: 28 }, env.cx);
+    const tree = ui.render();
+    assert.ok(find(tree, "status-space"));
+    assert.equal(Boolean(find(tree, "palette")), commands);
+    const text = JSON.stringify(tree);
+    assert.equal(text.includes("feature"), width > 500);
+    assert.equal(text.includes("0 agents"), width > 300);
+  }
 });
 
 test("machine plus creates in that machine's home; only right-click opens appearance", () => {
@@ -717,6 +886,7 @@ test("shared buttons consume nested gestures and disabled keyboard actions do no
   const disabled = button(t, "disabled", "Disabled", () => actions++, { disabled: true });
   disabled.events.on_click({}, env.cx);
   disabled.events.on_key_down(key("space"), env.cx);
+  assert.equal(disabled.props.tab_stop, false);
   assert.equal(actions, 1);
 });
 

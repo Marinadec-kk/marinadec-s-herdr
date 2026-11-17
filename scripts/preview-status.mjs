@@ -1,9 +1,13 @@
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const arg = name => process.argv.find(value => value.startsWith(`--${name}=`))?.split("=").slice(1).join("=");
+const zoom = Number(arg("zoom") ?? 1), scale = Number(arg("scale") ?? 1);
+if (!Number.isFinite(zoom) || zoom < .5 || zoom > 3 || !Number.isFinite(scale) || scale < 1 || scale > 3)
+  throw new Error("Expected --zoom=0.5..3 and --scale=1..3");
 const base = process.env.OPENCODE_PREVIEW_TMP ?? "/tmp/opencode";
 mkdirSync(base, { recursive: true });
 const home = mkdtempSync(join(base, "herdr-status-review-"));
@@ -21,18 +25,40 @@ function rewrite(dir) {
   }
 }
 rewrite(mod);
+// Keep the actual production entrypoint for sidebar/brand/footer review.
+cpSync(join(mod, "main.js"), join(mod, "sidebar.js"));
 for (const name of ["main.js", "status.js", "tree.js", "fixtures.js", "mod.json",
   "status-working.svg", "status-blocked.svg", "status-done.svg", "status-idle.svg"])
   cpSync(join(root, "preview", "status-review", name), join(mod, name));
+if (process.argv.includes("--ui")) {
+  // Route every host call to the fixture; not even a read of the real core.
+  const patch = dir => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const file = join(dir, entry.name);
+      if (entry.isDirectory()) patch(file);
+      else if (entry.name.endsWith(".js")) {
+        const host = relative(dir, join(mod, "host.js"));
+        writeFileSync(file, readFileSync(file, "utf8").replaceAll('"herdr"', JSON.stringify(host.startsWith(".") ? host : `./${host}`)));
+      }
+    }
+  };
+  patch(mod);
+  cpSync(join(root, "preview/ui/main.js"), join(mod, "main.js"));
+  cpSync(join(root, "preview/ui/host.js"), join(mod, "host.js"));
+}
 mkdirSync(join(home, "layouts"), { recursive: true });
+if (existsSync(join(root, "themes"))) cpSync(join(root, "themes"), join(home, "themes"), { recursive: true });
 writeFileSync(join(home, "layouts", "status-review.json"), JSON.stringify({
-  id: "status-review", type: "block", theme: "ink",
+  id: "status-review", type: "block", theme: arg("theme") ?? (process.argv.includes("--ui") ? "opencode-tui" : "ink"),
   font: "Liberation Mono", font_size: 14, ui_font: "Liberation Sans",
-  content: { mod: "status-review", props: { railWidth: 44, wideWidth: 299, selected: "atlas" } },
+  content: { mod: "status-review", props: { page: arg("page") ?? "chrome", sidebarWidth: Number(arg("sidebar-width") ?? 0),
+    railWidth: 44, wideWidth: 299, selected: "atlas" } },
 }, null, 2) + "\n");
 writeFileSync(join(home, "shared.json"), JSON.stringify({ layout: "status-review", "frame.welcomed": "skipped" }) + "\n");
+const version = spawnSync("herdr-app", ["--version"], { encoding: "utf8" }).stdout?.match(/\d+\.\d+\.\d+/)?.[0];
+if (version) writeFileSync(join(home, "update-notes.json"), JSON.stringify({ last_run: version, presented: [version] }) + "\n");
 writeFileSync(join(home, "settings.json"), JSON.stringify({
-  zoom: 1, sounds: { enabled: false }, telemetry: false,
+  zoom, sounds: { enabled: false }, telemetry: false,
 }) + "\n");
 writeFileSync(join(home, "window.json"), JSON.stringify({ state: "windowed", bounds: [80, 60, 1240, 930] }) + "\n");
 
@@ -70,7 +96,7 @@ if (!process.argv.includes("--prepare-only")) {
   const offscreen = process.platform === "linux" && !process.argv.includes("--window");
   const app = offscreen
     ? spawn("dbus-run-session", [`--config-file=${join(home, "review-bus.conf")}`, "--", "kwin_wayland", "--virtual", "--width", "1440", "--height", "1040",
-      "--scale", "1", "--output-count", "1", "--no-lockscreen", "--no-global-shortcuts", "--no-kactivities",
+      "--scale", String(scale), "--output-count", "1", "--no-lockscreen", "--no-global-shortcuts", "--no-kactivities",
       "--socket", "wayland-review", "--exit-with-session", join(home, "run-herdr.sh")], { env, stdio: "inherit" })
     : spawn("herdr-app", [], { env, stdio: "inherit" });
   app.on("error", error => { console.error(error.message); process.exitCode = 1; });

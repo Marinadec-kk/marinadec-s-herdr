@@ -6,6 +6,7 @@ import { pixelIcon, programIcon } from "./pixel-ui.js";
 import { Menu } from "./ui/menu.js";
 import { TAB_MENU } from "./presentation/menus.js";
 import { openWorktree, openTabRename, closeTab, overlayProps, newSpaceInHome } from "./overlays.js";
+import { SPACING } from "./ui/tokens.js";
 const KNOWN = "new-menu.agents";
 export function createPixelMenu(raw, cx) {
     const data = overlayProps(raw), tab = record(data.chromeMenu);
@@ -81,7 +82,7 @@ class PixelMenu {
             icon: programIcon(item.agent, 14, t.muted) ?? pixelIcon(item.glyph, t.muted),
             hotkey: item.agent?.installed ? item.hint : undefined,
         })))
-            .when(this.data.newMenu === true && (this.failed || !this.agents.length), el => el.child(div().px(8).py(5).text_size(14).text_color(t.dim)
+            .when(this.data.newMenu === true && (this.failed || !this.agents.length), el => el.child(div().p(SPACING.menu.inset).text_size(14).text_color(t.dim)
             .child(this.failed ? "Could not check installed agents" : "Checking installed agents…")));
     }
 }

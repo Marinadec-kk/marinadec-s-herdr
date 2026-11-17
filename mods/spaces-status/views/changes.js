@@ -9,7 +9,7 @@ import { PanelLifecycle, LatestRequest } from "./panel-lifecycle.js";
 import { git, repositoryTop, readGitStatus, GIT_READ } from "../data/git.js";
 import { gitMarkColor } from "../presentation/git.js";
 import { joinPath } from "../data/paths.js";
-import { UI } from "../ui/tokens.js";
+import { UI, SPACING, FILES } from "../ui/tokens.js";
 const untab = (text) => text.replace(/[^\t]*\t/g, s => s.slice(0, -1).padEnd((s.length - 1) - (s.length - 1) % 4 + 4));
 function diffRows(lines) {
     let old = 0, next = 0;
@@ -222,10 +222,10 @@ export class Changes {
     }
     diffRow({ kind, number, text }, t) {
         if (kind === "@")
-            return div().w_full().px(12).h(20).flex_none().truncate().bg(t.raised).text_color(t.dim).child(text);
-        return h_flex().w_full().h(20).flex_none().gap(10)
+            return div().w_full().px(SPACING.panel.inset).h(FILES.diffRow).flex_none().truncate().bg(t.raised).text_color(t.dim).child(text);
+        return h_flex().w_full().h(FILES.diffRow).flex_none().gap(SPACING.row.gap)
             .when(kind === "+", el => el.bg(tint(t.ansi2, t.background, .1))).when(kind === "-", el => el.bg(tint(t.ansi1, t.background, .1)))
-            .child(div().w(30).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
+            .child(div().w(FILES.numberLane).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
             .child(div().flex_1().min_w(0).truncate().child(text));
     }
     render(cx) {
@@ -242,23 +242,24 @@ export class Changes {
         } })
             .child(panelHeader(t, "Changes").child(secondary(t, `${this.files.length} files`)).child(div().flex_1())
             .child(secondary(t, `+${add}`).text_color(t.ansi2)).child(secondary(t, `−${del}`).text_color(t.ansi1)))
-            .child(div().flex_1().min_h(44).max_h(this.files.length * 28 + 12).relative().border_b(UI.stroke).border_color(t.border)
-            .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll().p(6)
-            .children(this.files.map(file => actionRow(t, `change-${file.path}`, file.path, cx => this.pick(file.path, cx), { selected: this.open === file.path }).h(28)
+            .child(div().flex_1().min_h(44).max_h(this.files.length * FILES.row + SPACING.panel.listInsetY * 2).relative().border_b(UI.stroke).border_color(t.border)
+            .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll()
+            .px(SPACING.panel.listInset).py(SPACING.panel.listInsetY)
+            .children(this.files.map(file => actionRow(t, `change-${file.path}`, file.path, cx => this.pick(file.path, cx), { selected: this.open === file.path }).h(FILES.row)
             .child(secondary(t, file.status).w(14).text_color(gitMarkColor(t, file.status)))
             .child(div().flex_1().min_w(0).truncate().tooltip(file.path).text_color(t.foreground).child(file.path))
             .when(file.add > 0, el => el.child(secondary(t, `+${file.add}`).text_color(t.ansi2)))
             .when(file.del > 0, el => el.child(secondary(t, `−${file.del}`).text_color(t.ansi1)))))
             .when(!this.files.length, el => el.child(emptyState(t, this.error || (this.lifecycle.loading ? "Loading changes…" : this.root ? "No uncommitted changes" : "No folder")))))
             .child(Scrollbar.vertical("changes-list").absolute().inset_0()))
-            .when(this.limited, el => el.child(secondary(t, "Showing the first 1,000 changed files").px(12)))
+            .when(this.limited, el => el.child(secondary(t, "Showing the first 1,000 changed files").px(SPACING.panel.inset)))
             .child(div().flex_1().min_h(0).relative().font_family(typeof font === "string" ? font : "Liberation Mono").text_size(14)
             .child(div().id("changes-diff-x").size_full().overflow_x_scrollbar()
-            .child(div().w_full().min_w(this.diffWidth).h_full().child(v_virtual_list("changes-diff", this.rows.length, 20, i => String(i), range => this.rows.slice(range.start, range.end).map(row => this.diffRow(row, t))).size_full())))
+            .child(div().w_full().min_w(this.diffWidth).h_full().child(v_virtual_list("changes-diff", this.rows.length, FILES.diffRow, i => String(i), range => this.rows.slice(range.start, range.end).map(row => this.diffRow(row, t))).size_full())))
             .child(Scrollbar.vertical("changes-diff").viewport_from_layout().absolute().inset_0())
-            .when(!this.open && this.files.length > 0, el => el.child(secondary(t, "Select a file to view its changes").absolute().top(6).px(12))))
-            .when(Boolean(this.note), el => el.child(secondary(t, this.note).px(10).pb(8).text_color(t.ansi1)))
-            .child(h_flex().flex_none().p(10).gap(8).border_t(UI.stroke).border_color(t.border)
+            .when(!this.open && this.files.length > 0, el => el.child(secondary(t, "Select a file to view its changes").absolute().top(SPACING.panel.listInsetY).px(SPACING.panel.inset))))
+            .when(Boolean(this.note), el => el.child(secondary(t, this.note).p(SPACING.panel.inset).text_color(t.ansi1)))
+            .child(h_flex().flex_none().p(SPACING.panel.inset).gap(SPACING.control.gap).border_t(UI.stroke).border_color(t.border)
             .child(textInput(t, this.input).id("commit-message").flex_1().min_w(0))
             .child(button(t, "commit", this.busy ? "Committing…" : "Commit", cx => this.commit(cx), { selected: true, disabled: !enabled })));
     }
